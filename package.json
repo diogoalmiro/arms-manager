@@ -1,0 +1,27 @@
+{
+  "name": "arms-manager",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "bin": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "package": "npx pkg package.json -t win -o  arms-managerv0.0.1.exe"
+  },
+  "pkg": {
+    "assets": [
+      "./docker/*",
+      "./node_modules/@webfocus/app/views/**/*",
+      "./node_modules/@webfocus/app/static/**/*",
+      "./node_modules/@webfocus/util/**/*"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@webfocus/app": "^0.2.14",
+    "@webfocus/component": "^0.0.3",
+    "@webfocus/util": "^0.2.13"
+  }
+}

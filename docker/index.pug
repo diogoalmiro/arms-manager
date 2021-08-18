@@ -1,0 +1,170 @@
+extends /layouts/main
+
+block head
+    script(src="/util/pagination.js")
+
+    style.
+        #task-zone{
+            display: table;
+            border-collapse: collapse;
+            margin: 0.4em auto;
+            box-sizing: border;
+        }
+
+        .task-row{
+            display: table-row;
+            border-top: 1px solid;
+            border-bottom: 1px solid;
+        }
+        .task-row:first-child{
+            border-top: none;
+        }
+
+        .task-row > * {
+            display: table-cell;
+            padding: 0.4em 1em;
+            vertical-align: middle;
+        }
+
+        .langs{
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .langs > span{ 
+            flex: 0 0 100%;
+            margin: 0;
+        }
+        
+        .langs > .form-check-label{ 
+            margin: 0.1em 0.2em;
+        }
+        .status{
+            background: var(--bs-secondary);
+        }
+
+        .status.running {
+            background: var(--bs-info);
+        }
+        
+        .status.created, .status.paused {
+            background: var(--bs-warning);
+        }
+        
+        .status.ready{
+            background: var(--bs-secondary);
+        }
+        .status.exited{
+            background: var(--bs-success);
+        }
+        .status.exited{
+            background: var(--bs-danger);
+        }
+        
+block main
+    #task-zone(data-pagination-url=apibaseurl, data-pagination-step=1000)
+        .task-row
+            span Task
+            span Status
+            span Input Folder
+            span Output Folder
+            span OCR Settings
+            span Actions
+        form#upload.task-row(action=apibaseurl+"create", method="post")
+            div
+                span Create a new task
+            div
+            div
+                span A popup will ask you the input and output folders.
+            div
+            div: .settings
+                    .form-check
+                        label.form-check-label
+                            input.form-check-input(type="checkbox", name="comp")
+                            | Disable Line segmentation comparison
+                    .form-check
+                        label.form-check-label
+                            input.form-check-input(type="checkbox", name="prep")
+                            | Additional pre-processing
+                
+                    .langs.form-group 
+                        span.form-text Dictionaries:
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="osd")
+                            | osd
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="por")
+                            | por
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="ara")
+                            | ara
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="eng")
+                            | eng
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="rus")
+                            | rus
+                    .input-group
+                        label.input-group-text Priority
+                        select.form-select(name="priority")
+                            option(value="1") Low
+                            option(value="2", selected="selected") Normal 
+                            option(value="3") High
+            .actions
+                button(type="submit").btn.btn-primary Create a new task
+        template
+            form.task-row(action=apibaseurl+'task', method="post") 
+                div
+                    input(style="display: none;",data-pagination-key="value", data-pagination-map="#{value.task}",name="task", readonly="readonly")
+                    a(data-pagination-href=`${componentbaseurl}task?id=#{value.task}`)
+                        span(data-pagination-map="#{value.task}") 
+                div: span.status.badge.rounded-pill(data-pagination-function="let status = value.docker ? value.docker.State.Status : 'editable'; this.classList.add(status); return value.settings.userPaused ? 'User paused' : status")
+                div: span(data-pagination-map="#{value.settings.input}")    
+                div
+                    span(data-pagination-map="#{value.settings.output}")
+                
+
+
+                div: .settings
+                    .form-check
+                        label.form-check-label
+                            input.form-check-input(type="checkbox", name="comp", data-pagination-function="this.checked = value.settings.comp; this.disabled = !!value.docker")
+                            | Disable Line segmentation comparison
+                    .form-check
+                        label.form-check-label
+                            input.form-check-input(type="checkbox", name="prep", data-pagination-function="this.checked = value.settings.prep; this.disabled = !!value.docker")
+                            | Additional pre-processing
+                    .langs.form-group
+                        span.form-text Dictionaries:
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="osd", data-pagination-function="this.checked = value.settings.lang.indexOf('osd') >= 0; this.disabled = !!value.docker")
+                            | osd
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="por", data-pagination-function="this.checked = value.settings.lang.indexOf('por') >= 0; this.disabled = !!value.docker")
+                            | por
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="ara", data-pagination-function="this.checked = value.settings.lang.indexOf('ara') >= 0; this.disabled = !!value.docker")
+                            | ara
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="eng", data-pagination-function="this.checked = value.settings.lang.indexOf('eng') >= 0; this.disabled = !!value.docker")
+                            | eng
+                        label.form-check-label
+                            input.form-check-input(name="lang", type="checkbox", value="rus", data-pagination-function="this.checked = value.settings.lang.indexOf('rus') >= 0; this.disabled = !!value.docker")
+                            | rus
+                    .input-group
+                        label.input-group-text Priority
+                        select.form-select(name="priority", data-pagination-key="disabled", data-pagination-map="", data-pagination-if="return !!value.docker")
+                            option(value="1",data-pagination-key="selected", data-pagination-map="", data-pagination-if="return value.settings.priority == 1") Low
+                            option(value="2", data-pagination-key="selected", data-pagination-map="", data-pagination-if="return value.settings.priority == 2") Normal 
+                            option(value="3", data-pagination-key="selected", data-pagination-map="", data-pagination-if="return value.settings.priority == 3") High
+                div
+                    .actions
+                        // All buttons are submitable, however, only when renaming we hit enter. Enter will submit with the first button.
+                        button.d-none(type="submit", value="rename", name="action")
+                        button.btn.btn-primary(type="submit", value="save", name="action", data-pagination-function="return value.docker ? this.parentNode.removeChild(this) : 'Update'") Update
+                        button.btn.btn-danger(type="submit", value="delete", name="action") Delete
+                        div.input-group
+                            input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{value.task}\"")
+                            button.btn.btn-info.form-control(type="submit", value="rename", name="action") Rename
+                        button.btn.btn-warning(type="submit", value="stop", name="action", data-pagination-function="return (!value.docker || value.docker.State.Status.match(/(paused)/)) && value.settings.userPaused ? this.parentNode.removeChild(this) : 'Stop'") Stop
+                        button.btn.btn-primary(type="submit", value="run", name="action", data-pagination-function="return value.docker.State.Status.match(/(running)/) || !value.settings.userPaused ? this.parentNode.removeChild(this) : 'Run'") Run
