@@ -8,5 +8,6 @@ fs.mkdirSync(DOCKER_IMAGE_FOLDER, { recursive: true });
 
 fs.writeFileSync(path.join(DOCKER_IMAGE_FOLDER, 'Dockerfile'), fs.readFileSync(path.join(__dirname, 'Dockerfile')));
 console.error("Building/Updating docker image...")
-require('child_process').execSync(`docker build -t ${IMAGE_NAME} .`, { cwd: DOCKER_IMAGE_FOLDER, stdio: 'ignore' });
-console.error("Finnished")
+require('child_process').execSync(`docker build -t ${IMAGE_NAME} .`, {
+    cwd: DOCKER_IMAGE_FOLDER
+});

@@ -33,7 +33,7 @@ async function allTasksInfo(){
 component.app.get("/", pagination(allTasksInfo));
 component.staticApp.get('/task', async (req, res, next) => {
     component.task = await taskInfo(req.query.id)
-    component.task.logs = await exec(` docker logs ${req.query.id}`).then(({stdout}) => stdout).catch(e => "");
+    component.task.logs = await exec(`docker logs ${req.query.id}`).then(({stdout}) => stdout).catch(e => "");
     next()
 })
 
