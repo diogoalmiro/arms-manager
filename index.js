@@ -1,21 +1,26 @@
-process.env.DEBUG = "webfocus:*";
+const child_process = require("child_process");
+const fs = require("fs");
+const path = require("path");
 
-let path = require('path')
-let WebfocusApp = require('@webfocus/app');
+const APP_FOLDER = path.join(process.env.APPDATA, "arms-app")
+const LOG_FOLDER = path.join(APP_FOLDER, "logs");
 
-let configuration = {
-    port : 8006, // Specify your port here
-    name : "ARMS Manager",
-    // Add more configurations here
-    views : path.join(__dirname, 'node_modules', '@webfocus', 'app', 'views'),
-    static : path.join(__dirname, 'node_modules', '@webfocus', 'app', 'static')
-}
+fs.mkdirSync(LOG_FOLDER, { recursive: true });
 
-let webfocusApp = new WebfocusApp( configuration );
+const { writeFileSync, readFileSync } = require("fs");
+writeFileSync(path.join(APP_FOLDER, 'favicon.ico'), readFileSync(path.join(__dirname, 'node_modules/@webfocus/app/static/favicon.ico')))
 
-// Register webfocus/app comonents here
-// e.g. webfocusApp.registerComponent(require('../component-example'));
-webfocusApp.registerComponent(require('@webfocus/util/component'));
-webfocusApp.registerComponent(require('./docker'));
+const logname = Date.now().toString();
 
-webfocusApp.start();
+const stdout = fs.openSync(path.join(LOG_FOLDER, logname+ "_stdout.log"), 'w')
+const stderr = fs.openSync(path.join(LOG_FOLDER, logname+ "_stderr.log"), 'w')
+
+const child = child_process.fork(path.join(__dirname,'main.js'), {
+    stdio: ['ignore', stdout, stderr, 'ipc'],
+    detached: true,
+
+    env: { DEBUG: 'webfocus:*', ...process.env }
+});
+
+child.unref();
+process.exit(0);

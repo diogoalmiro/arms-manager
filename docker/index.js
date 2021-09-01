@@ -8,8 +8,11 @@ const pagination = require("@webfocus/util/util").pagination;
 const {promisify} = require('util');
 const exec =  promisify(require('child_process').exec);
 
+const drivelist = require("drivelist");
+
+
 const IDLE_TIME = 1000;
-const TASK_FOLDER = path.join(process.env.APPDATA, "arms-app-tasks");
+const TASK_FOLDER = path.join(process.env.APPDATA, "webfocus-component-docker/tasks");
 fs.mkdir(TASK_FOLDER, { recursive: true });
 Settings.basedir = TASK_FOLDER;
 
@@ -17,7 +20,7 @@ async function taskInfo(taskName){
     return {
         task: taskName,
         settings: Settings.read(taskName),
-        docker: await exec(`docker container inspect --format "{{json .}}" ${taskName}`).then(({stdout}) => JSON.parse(stdout)).catch(e => null)
+        docker: await exec(`docker container inspect --format "{{json .}}" ${taskName}`, { windowsHide: true, shell: false }).then(({stdout}) => JSON.parse(stdout)).catch(e => null)
     }
 }
 
@@ -37,13 +40,34 @@ component.staticApp.get('/task', async (req, res, next) => {
     next()
 })
 
+component.staticApp.get("/select-folder", async (req, res, next) => {
+    try{
+        if( req.query.path ){
+            let entries = await fs.readdir(req.query.path, { withFileTypes: true });
+            req.folders = entries.filter(e => e.isDirectory()).map(e => path.join(req.query.path, e.name))
+            req.files = entries.filter(e => e.isFile())
+            req.up = path.join(req.query.path, '..')
+            if( req.up == req.query.path ) req.up=''
+        }
+        else{
+            let drives = await drivelist.list();
+            req.folders = drives.map(d => d.mountpoints).flat().map(m => m.path);
+            req.files = []
+            req.up = ''
+        }
+        next()
+    }
+    catch(e){
+        next(e)
+    }
+})
+
 component.app.post("/create", async (req, res, next) => {
     component.debug("Creating task.")
     try{
-        let inputFolder = await selectFolder("Select input folder.");
-        let outputFolder = await selectFolder("Select output folder.");
+        fs.stat(req.body.path)
 
-        let settings = Settings.create(Date.now().toString(), inputFolder, outputFolder);
+        let settings = Settings.create(Date.now().toString(), req.body.path, req.body.path);
         
         settings.comp = 'comp' in req.body;
         settings.prep = 'prep' in req.body;
@@ -51,7 +75,7 @@ component.app.post("/create", async (req, res, next) => {
         settings.priority = parseInt(req.body["priority"] || 1)
 
         Settings.update(settings.task, settings)
-        res.redirect(req.headers.referer)
+        res.redirect(`/${component.urlname}/`)
     }
     catch(e){
         next(e)
@@ -163,35 +187,6 @@ component.app.post("/task", (req, res, next) => {
         }
     }).catch(next)
 })
-
-// Windows only. Adapted. https://stackoverflow.com/a/51658369/2573422 
-function selectFolder(description="Select Folder"){
-    const script = `
-    param([string]$Description="${description}",[string]$RootFolder="Desktop")
-    @chcp 65001 >nul 
-    [System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null     
-
-    $objForm = New-Object System.Windows.Forms.FolderBrowserDialog
-    $objForm.Rootfolder = $RootFolder
-    $objForm.Description = $Description
-    $Show = $objForm.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost = $true }))
-    Write-Host "SELECTED-PATH" $objForm.SelectedPath
-`
-    return new Promise((resolve, reject) => {
-        let process = child_process.exec(`powershell`,  {encoding: "UTF-8"}, (err, stdout, stderr) => {
-            if(err) return reject(err)
-            let folder = stdout.match(/^SELECTED-PATH (.*)$/m)[1].trim();
-            if( folder.length > 0 )
-                resolve(folder);
-            else{
-                reject(new Error("User canceled."))
-            }
-        });
-
-        process.stdin.write(script);
-        process.stdin.end();
-    })
-}
 
 // Ensure our image exists in host computer
 const IMAGE_NAME = require('./create-local-dockerfile');

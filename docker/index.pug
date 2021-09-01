@@ -72,7 +72,8 @@ block main
             span Actions
         form#upload.task-row(action=apibaseurl+"create", method="post")
             div
-                span Create a new task
+                a.btn.btn-primary(href=componentbaseurl+'select-folder') Create a new task
+        //
             div
             div
                 span A popup will ask you the input and output folders.

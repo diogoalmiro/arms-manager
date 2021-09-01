@@ -2,7 +2,7 @@ let fs = require('fs');
 let path = require('path');
 
 const  IMAGE_NAME = module.exports = "arms-automatic-docker-image";
-const DOCKER_IMAGE_FOLDER = path.join(process.env.APPDATA, "arms-app-docker");
+const DOCKER_IMAGE_FOLDER = path.join(process.env.APPDATA, "webfocus-component-docker");
 
 fs.mkdirSync(DOCKER_IMAGE_FOLDER, { recursive: true });
 

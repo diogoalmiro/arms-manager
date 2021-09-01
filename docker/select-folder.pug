@@ -1,0 +1,17 @@
+extends /layouts/main
+
+block main
+    if req.query.path
+        form.container(action=apibaseurl+"create", method="post")
+            .form-label Current directory: 
+                input(readonly,name="path",value=req.query.path)
+            button(type="submit").btn.btn-primary Create task here
+            ul.form-label Files in this directory:
+                for file of req.files 
+                    li= file.name
+            hr
+    span Select a folder
+    ul.container
+        li: a(href=componentbaseurl+`select-folder?path=${req.up}`) ..
+        for folder of req.folders
+            li: a(href=componentbaseurl+`select-folder?path=${folder}`)= folder
