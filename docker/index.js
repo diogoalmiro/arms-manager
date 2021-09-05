@@ -7,8 +7,14 @@ const Settings = require('./settings');
 const pagination = require("@webfocus/util/util").pagination;
 const {promisify} = require('util');
 const exec =  promisify(require('child_process').exec);
-
+const open = require('open');
 const drivelist = require("drivelist");
+const nodemailer = require("nodemailer")
+
+const transporter = nodemailer.createTransport({
+    host: "mx7.un.org",
+    port: 25
+})
 
 
 const IDLE_TIME = 1000;
@@ -36,8 +42,14 @@ async function allTasksInfo(){
 component.app.get("/", pagination(allTasksInfo));
 component.staticApp.get('/task', async (req, res, next) => {
     component.task = await taskInfo(req.query.id)
+    if( !component.task.settings ) return next(new Error("Task not found"))
     component.task.logs = await exec(`docker logs ${req.query.id}`).then(({stdout}) => stdout).catch(e => "");
     next()
+})
+
+component.app.get("/open-folder", async (req, res) => {
+    open(req.query.path)
+    res.redirect(req.headers.referer)
 })
 
 component.staticApp.get("/select-folder", async (req, res, next) => {
@@ -67,7 +79,7 @@ component.app.post("/create", async (req, res, next) => {
     try{
         fs.stat(req.body.path)
 
-        let settings = Settings.create(Date.now().toString(), req.body.path, req.body.path);
+        let settings = Settings.create(Date.now().toString(), req.body.path);
         
         settings.comp = 'comp' in req.body;
         settings.prep = 'prep' in req.body;
@@ -126,13 +138,21 @@ action("run", async (task, req, res, next) => {
         if( settings.comp ) flags.push('--comp');
         if( settings.prep ) flags.push('--prep');
         for( let lang of settings.lang ) flags.push(`--lang ${lang}`);
-        child_process.execSync(`docker create -v "${settings.input}":/input -v "${settings.output}":/arms_docker-main/workflow/results/input --name ${settings.task} ${IMAGE_NAME} python3 workflow.py --folder /input ${flags.join(' ')}`)
+        await fs.mkdir(path.join(settings.folder,'out'), { recursive: true })
+        child_process.execSync(`docker create -v "${settings.folder}":/input -v "${settings.folder}/out/":/arms_docker-main/workflow/results/input --name ${settings.task} ${IMAGE_NAME} python3 workflow.py --folder /input ${flags.join(' ')}`)
+        runNextTask() // Try to start a new container now
     }
     else{
         if(docker.State.Status == 'running'){
             return next(new Error("Container already running."))
         }
         else if( docker.State.Status == 'paused' ){
+            let settings = Settings.read(task)
+            settings.userPaused = false;
+            Settings.update(settings.task, settings);
+            runNextTask() // Try to start a new container now
+        }
+        else if( docker.State.Status == 'exited' || docker.State.Status == 'created' ){
             let settings = Settings.read(task)
             settings.userPaused = false;
             Settings.update(settings.task, settings);
@@ -156,6 +176,7 @@ action("delete", async (task, req, res, next) => {
     if( !docker ){
         Settings.delete(task);
     }
+    res.redirect(`/${component.urlname}/`)
 })
 
 action("rename", async (task, req, res, next) => {
@@ -167,8 +188,9 @@ action("rename", async (task, req, res, next) => {
         let settings = Settings.read(task);
         Settings.delete(task);
         settings.task = req.body.newname;
-        Settings.create(req.body.newname, settings.input, settings.output, settings);
+        Settings.create(req.body.newname, settings.folder, settings);
     }
+    res.redirect(`/${component.urlname}/task?id=${req.body.newname}`)
 })
 
 component.app.post("/task", (req, res, next) => {
@@ -190,57 +212,30 @@ component.app.post("/task", (req, res, next) => {
 
 // Ensure our image exists in host computer
 const IMAGE_NAME = require('./create-local-dockerfile');
-setImmediate(loop)
 
-async function loop(){
+async function runNextTask(){
     let tasks = await allTasksInfo();
     let nextTask = null;
-    for(let task of tasks ){
+    for( let task of tasks ){
         if( !task.docker ) continue;
         if( task.docker.State.Status == 'running' ){
-            nextTask = null;
-            break;
+            return null;
         }
         if( task.docker.State.Status == 'created' || task.docker.State.Status == 'paused' && !task.settings.userPaused ){
-            if(!nextTask){
-                nextTask = task;
+            if( !nextTask ){
+                nextTask = task
             }
             if( new Date(nextTask.docker.Created) > new Date(task.docker.Created) && nextTask.settings.priority <= task.settings.priority ){
                 nextTask = task;
             }
         }
     }
-    if( nextTask == null ) return setTimeout(loop, IDLE_TIME);
-
-    await exec(`docker ${nextTask.docker.State.Status == 'paused' ? 'unpause' : 'start'} ${nextTask.task}`).catch(e => component.warn("Loop error: %O", e)).then(loop)
-}
-
-/*
-async function getNextTaskSettings(){
-    let next = null;
-    for(let task of await fs.readdir(TASK_FOLDER)){
-        let settings = Settings.read(task);
-        if( settings.task != task  || settings.currentStatus != Settings.STATUS.QUEUED ) continue;
-        if( next == null ) next = settings;
-        if( next.priority < settings.priority ) next = settings;
-        if( new Date(next.queued) > new Date(settings.queued) ) next = settings;
+    if( nextTask ){
+        await exec(`docker ${nextTask.docker.State.Status == 'paused' ? 'unpause' : 'start'} ${nextTask.task}`).catch(e => component.warn("docker unpause/start error: %O", e))
     }
-    return next;
 }
 
-function checkDocker(){
-    return new Promise((resolve) => {
-        let p = child_process.exec(`docker container ls  --format='{{json .}}'`);
-        let data = "";
-        p.stdout.on('data', d => data+= d.toString());
-        p.stdout.on('end', _ => {
-            resolve();
-        })
-    })
-}
-*/
-/*
-const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}" --filter "type=container"`)
+const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}" --filter "type=container" --filter "event=pause" --filter="event=die"`)
 let lastLine = '';
 watcher.stderr.on('data', (part) => {
     console.error('docker events error')
@@ -256,8 +251,35 @@ watcher.stdout.on('data', (part) => {
         component.debug('dockerEvent %O', JSON.parse(json))
     }
 })
-*/
 
+component.on('dockerEvent', (evt) => {
+    if( evt.status == 'die' || evt.status == 'pause' ){  // Start the next container when another ends or user Pauses it
+        runNextTask();
+    }
+})
+
+
+runNextTask() // Start the next container when starting the component
+
+/**
+ * dockerEvent examples:
+ * {"status":"unpause","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"unpause","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630690875,"timeNano":1630690875216024500}
+{"status":"create","id":"94a1d7331962a2ce79a9c9478f63b0cb84346447f95cbbccf2cab5f0f9652316","from":"arms-automatic-docker-image","Type":"container","Action":"create","Actor":{"ID":"94a1d7331962a2ce79a9c9478f63b0cb84346447f95cbbccf2cab5f0f9652316","Attributes":{"desktop.docker.io/binds/0/Source":"C:\\Users\\Diogo Almiro\\Desktop\\ARMS_FILES","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"C:\\Users\\Diogo Almiro\\Desktop\\ARMS_FILES/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630690960736"}},"scope":"local","time":1630690966,"timeNano":1630690966433753500}
+{"status":"destroy","id":"94a1d7331962a2ce79a9c9478f63b0cb84346447f95cbbccf2cab5f0f9652316","from":"arms-automatic-docker-image","Type":"container","Action":"destroy","Actor":{"ID":"94a1d7331962a2ce79a9c9478f63b0cb84346447f95cbbccf2cab5f0f9652316","Attributes":{"desktop.docker.io/binds/0/Source":"C:\\Users\\Diogo Almiro\\Desktop\\ARMS_FILES","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"C:\\Users\\Diogo Almiro\\Desktop\\ARMS_FILES/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630690960736"}},"scope":"local","time":1630690971,"timeNano":1630690971478301900}
+{"status":"kill","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"kill","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261","signal":"15"}},"scope":"local","time":1630690976,"timeNano":1630690976439148800}
+{"status":"kill","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"kill","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261","signal":"9"}},"scope":"local","time":1630690986,"timeNano":1630690986641824600}
+{"status":"die","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"die","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","exitCode":"137","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630690986,"timeNano":1630690986674968200}
+{"status":"stop","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"stop","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630690986,"timeNano":1630690986936030200}
+{"status":"destroy","id":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","from":"arms-automatic-docker-image","Type":"container","Action":"destroy","Actor":{"ID":"44df1afdb59ced2c27e877c1d0574bc8d9907256667a9c9efe279f6fce1d44ae","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630690987,"timeNano":1630690987542720100}
+
+
+{"status":"start","id":"61a54d1cf73ead3f4fbddb354b1feec46507f4e645cd8c8647917258cab37b35","from":"arms-automatic-docker-image","Type":"container","Action":"start","Actor":{"ID":"61a54d1cf73ead3f4fbddb354b1feec46507f4e645cd8c8647917258cab37b35","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630691142,"timeNano":1630691142410573400}
+{"status":"die","id":"61a54d1cf73ead3f4fbddb354b1feec46507f4e645cd8c8647917258cab37b35","from":"arms-automatic-docker-image","Type":"container","Action":"die","Actor":{"ID":"61a54d1cf73ead3f4fbddb354b1feec46507f4e645cd8c8647917258cab37b35","Attributes":{"desktop.docker.io/binds/0/Source":"D:\\diogoalmiro\\SMALL_BATCH","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"D:\\diogoalmiro\\SMALL_BATCH/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","exitCode":"0","image":"arms-automatic-docker-image","name":"1630671884261"}},"scope":"local","time":1630692698,"timeNano":1630692698925893800}
+
+{"status":"create","id":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","from":"arms-automatic-docker-image","Type":"container","Action":"create","Actor":{"ID":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","Attributes":{"desktop.docker.io/binds/0/Source":"C:\\Intel\\gp","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"C:\\Intel\\gp/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630804755417"}},"scope":"local","time":1630804765,"timeNano":1630804765091533300}
+{"status":"start","id":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","from":"arms-automatic-docker-image","Type":"container","Action":"start","Actor":{"ID":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","Attributes":{"desktop.docker.io/binds/0/Source":"C:\\Intel\\gp","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"C:\\Intel\\gp/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","image":"arms-automatic-docker-image","name":"1630804755417"}},"scope":"local","time":1630804769,"timeNano":1630804769717528700}
+{"status":"die","id":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","from":"arms-automatic-docker-image","Type":"container","Action":"die","Actor":{"ID":"f88af06dcd174d0fcd38594bce1e75c4505bf930ed2b66d00373af29f3981192","Attributes":{"desktop.docker.io/binds/0/Source":"C:\\Intel\\gp","desktop.docker.io/binds/0/SourceKind":"hostFile","desktop.docker.io/binds/0/Target":"/input","desktop.docker.io/binds/1/Source":"C:\\Intel\\gp/out/","desktop.docker.io/binds/1/SourceKind":"hostFile","desktop.docker.io/binds/1/Target":"/arms_docker-main/workflow/results/input","exitCode":"0","image":"arms-automatic-docker-image","name":"1630804755417"}},"scope":"local","time":1630804772,"timeNano":1630804772090098900}
+ */
 /*
 fs.readdir(TASK_FOLDER).then(tasks => {
     for(let task of tasks){

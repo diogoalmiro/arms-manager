@@ -1,1 +1,101 @@
-pre= JSON.stringify(component.task, null, '\t')
+extends /layouts/main
+
+block head
+    meta(http-equiv="refresh", content="30")
+    link(rel="stylesheet", href=componentbaseurl+"status-color.css")
+    link(rel="stylesheet", href=componentbaseurl+"timer.css")
+    style. 
+        ul#moment {
+            display: flex;
+            list-style: none;
+            position: relative;
+            padding: 0;
+            justify-content: space-around;
+        }
+
+        #moment li {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr 1fr;
+            padding: 0.5em 2em;
+        }
+
+        #moment li span {
+            margin: auto;
+            background: white;
+            text-align: center;
+        }
+
+block main
+    form.container(action=apibaseurl+'task', method="post") 
+        input(style="display: none;",name="task", value=component.task.task, readonly="readonly")
+        h4 Task !{component.task.task}
+            - let status = component.task.docker ? component.task.docker.State.Status : 'editable'
+            span.status.badge.rounded-pill(class=status)= component.task.settings.userPaused ? 'User paused' : status
+        h5 Events
+        - let moments = [];
+        - let add = (name, strdate="0001-01-01T00:00:00Z") => moments.push({name, date: new Date(strdate)})
+        - add("Inserted", component.task.settings.uploaded)
+        - add("Queued", component.task.docker?.Created)
+        - add("Started", component.task.docker?.State.StartedAt)
+        - add("Finished", component.task.docker?.State.FinishedAt)
+        - let format = new Intl.DateTimeFormat('default', { dateStyle: 'medium', timeStyle: 'medium' });
+        ul#moment
+            for moment of moments
+                li
+                    span: b= moment.name
+                    span= (!moment.date || (+moment.date) == +new Date("0001-01-01T00:00:00Z")) ? '' : format.format(moment.date)
+        h5 Configuration
+        .input-group
+            label.input-group-text Folder
+            input.form-control(value=component.task.settings.folder, readonly, name="folder")
+        .form-check
+            label.form-check-label
+                input.form-check-input(type="checkbox", name="comp", checked=component.task.settings.comp, disabled=!!component.task.docker)
+                | Disable Line segmentation comparison
+        .form-check
+            label.form-check-label
+                input.form-check-input(type="checkbox", name="prep", checked=component.task.settings.prep, disabled=!!component.task.docker)
+                | Additional pre-processing
+        span.form-text Dictionaries:
+        .langs.form-group
+            label.form-check-label
+                input.form-check-input(name="lang", type="checkbox", value="osd", checked=component.task.settings.lang.indexOf('osd') >= 0, disabled=!!component.task.docker)
+                | osd
+            label.form-check-label
+                input.form-check-input(name="lang", type="checkbox", value="por", checked=component.task.settings.lang.indexOf('por') >= 0, disabled=!!component.task.docker)
+                | por
+            label.form-check-label
+                input.form-check-input(name="lang", type="checkbox", value="ara", checked=component.task.settings.lang.indexOf('ara') >= 0, disabled=!!component.task.docker)
+                | ara
+            label.form-check-label
+                input.form-check-input(name="lang", type="checkbox", value="eng", checked=component.task.settings.lang.indexOf('eng') >= 0, disabled=!!component.task.docker)
+                | eng
+            label.form-check-label
+                input.form-check-input(name="lang", type="checkbox", value="rus", checked=component.task.settings.lang.indexOf('rus') >= 0, disabled=!!component.task.docker)
+                | rus
+        .input-group
+            label.input-group-text Priority
+            select.form-select(name="priority", disabled=!!component.task.docker)
+                option(value="1",selected=component.task.settings.priority==1) Low
+                option(value="2", selected=component.task.settings.priority==2) Normal 
+                option(value="3", selected=component.task.settings.priority==3) High
+        .actions
+            // All buttons are submitable, however, only when renaming we hit enter. Enter will submit with the first button.
+            button.d-none(type="submit", value="rename", name="action")
+            if !component.task.docker
+                button.btn.btn-primary(type="submit", value="save", name="action") Save Settings
+            button.btn.btn-danger(type="submit", value="delete", name="action")= component.task.docker ? 'Delete Container' : 'Delete Task'
+            div.input-group
+                input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{component.task.task}\"")
+                button.btn.btn-info.form-control(type="submit", value="rename", name="action") Rename
+            if component.task.docker
+                if !component.task.settings.userPaused && component.task.docker.State.Status != 'exited'
+                    button.btn.btn-warning(type="submit", value="stop", name="action")  Pause
+            if !component.task.docker || component.task.settings.userPaused
+                button.btn.btn-primary(type="submit", value="run", name="action") Run
+        h5 Logs
+        pre= component.task.logs
+        details
+            summary JSON Debug
+            pre= JSON.stringify(component.task.docker, null, "    ")

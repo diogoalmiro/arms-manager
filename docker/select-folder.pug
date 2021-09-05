@@ -12,6 +12,6 @@ block main
             hr
     span Select a folder
     ul.container
-        li: a(href=componentbaseurl+`select-folder?path=${req.up}`) ..
+        li: a(href=componentbaseurl+`select-folder?path=${req.up}`) Parent directory
         for folder of req.folders
             li: a(href=componentbaseurl+`select-folder?path=${folder}`)= folder

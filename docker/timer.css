@@ -1,0 +1,12 @@
+main{
+    position: relative;
+}
+
+main::after{
+    content: 'Refreshing every 30s';
+    font-size: 0.8em;
+    color: var(--bs-gray);
+    top: 1em;
+    right: 1em;
+    position: absolute;
+}

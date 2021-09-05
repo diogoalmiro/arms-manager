@@ -1,8 +1,10 @@
 extends /layouts/main
 
 block head
+    meta(http-equiv="refresh", content="30")
     script(src="/util/pagination.js")
-
+    link(rel="stylesheet", href=componentbaseurl+"status-color.css")
+    link(rel="stylesheet", href=componentbaseurl+"timer.css")
     style.
         #task-zone{
             display: table;
@@ -39,80 +41,20 @@ block head
         .langs > .form-check-label{ 
             margin: 0.1em 0.2em;
         }
-        .status{
-            background: var(--bs-secondary);
-        }
-
-        .status.running {
-            background: var(--bs-info);
-        }
-        
-        .status.created, .status.paused {
-            background: var(--bs-warning);
-        }
-        
-        .status.ready{
-            background: var(--bs-secondary);
-        }
-        .status.exited{
-            background: var(--bs-success);
-        }
-        .status.exited{
-            background: var(--bs-danger);
-        }
         
 block main
     #task-zone(data-pagination-url=apibaseurl, data-pagination-step=1000)
         .task-row
             span Task
             span Status
-            span Input Folder
-            span Output Folder
+            span Folder
             span OCR Settings
             span Actions
         form#upload.task-row(action=apibaseurl+"create", method="post")
             div
                 a.btn.btn-primary(href=componentbaseurl+'select-folder') Create a new task
-        //
-            div
-            div
-                span A popup will ask you the input and output folders.
-            div
-            div: .settings
-                    .form-check
-                        label.form-check-label
-                            input.form-check-input(type="checkbox", name="comp")
-                            | Disable Line segmentation comparison
-                    .form-check
-                        label.form-check-label
-                            input.form-check-input(type="checkbox", name="prep")
-                            | Additional pre-processing
-                
-                    .langs.form-group 
-                        span.form-text Dictionaries:
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="osd")
-                            | osd
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="por")
-                            | por
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="ara")
-                            | ara
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="eng")
-                            | eng
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="rus")
-                            | rus
-                    .input-group
-                        label.input-group-text Priority
-                        select.form-select(name="priority")
-                            option(value="1") Low
-                            option(value="2", selected="selected") Normal 
-                            option(value="3") High
-            .actions
-                button(type="submit").btn.btn-primary Create a new task
+        .task-row(data-pagination-loading="task-zone")
+            .m-x-auto Loading...
         template
             form.task-row(action=apibaseurl+'task', method="post") 
                 div
@@ -120,12 +62,7 @@ block main
                     a(data-pagination-href=`${componentbaseurl}task?id=#{value.task}`)
                         span(data-pagination-map="#{value.task}") 
                 div: span.status.badge.rounded-pill(data-pagination-function="let status = value.docker ? value.docker.State.Status : 'editable'; this.classList.add(status); return value.settings.userPaused ? 'User paused' : status")
-                div: span(data-pagination-map="#{value.settings.input}")    
-                div
-                    span(data-pagination-map="#{value.settings.output}")
-                
-
-
+                div: a(data-pagination-map="#{value.settings.folder}",data-pagination-href=`${apibaseurl}open-folder?path=#{value.settings.folder}`)
                 div: .settings
                     .form-check
                         label.form-check-label
@@ -162,10 +99,10 @@ block main
                     .actions
                         // All buttons are submitable, however, only when renaming we hit enter. Enter will submit with the first button.
                         button.d-none(type="submit", value="rename", name="action")
-                        button.btn.btn-primary(type="submit", value="save", name="action", data-pagination-function="return value.docker ? this.parentNode.removeChild(this) : 'Update'") Update
-                        button.btn.btn-danger(type="submit", value="delete", name="action") Delete
+                        button.btn.btn-primary(type="submit", value="save", name="action", data-pagination-function="return value.docker ? this.parentNode.removeChild(this) : 'Save Settings'") Save Settings
+                        button.btn.btn-danger(type="submit", value="delete", name="action", data-pagination-function="return value.docker ? 'Delete Container' : 'Delete Task'")
                         div.input-group
                             input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{value.task}\"")
                             button.btn.btn-info.form-control(type="submit", value="rename", name="action") Rename
-                        button.btn.btn-warning(type="submit", value="stop", name="action", data-pagination-function="return (!value.docker || value.docker.State.Status.match(/(paused)/)) && value.settings.userPaused ? this.parentNode.removeChild(this) : 'Stop'") Stop
-                        button.btn.btn-primary(type="submit", value="run", name="action", data-pagination-function="return value.docker.State.Status.match(/(running)/) || !value.settings.userPaused ? this.parentNode.removeChild(this) : 'Run'") Run
+                        button.btn.btn-warning(type="submit", value="stop", name="action", data-pagination-function="return value.docker ? (value.settings.userPaused || value.docker.State.Status == 'exited' ? this.parentNode.removeChild(this) : 'Pause')  : this.parentNode.removeChild(this)") Stop
+                        button.btn.btn-primary(type="submit", value="run", name="action", data-pagination-function="return value.docker ? (value.settings.userPaused ? 'Unpause' : this.parentNode.removeChild(this)) : 'Run'") Run

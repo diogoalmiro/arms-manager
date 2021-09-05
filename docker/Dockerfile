@@ -19,11 +19,11 @@ RUN apt-get update \
 RUN apt-get install libffi-dev -y
 RUN python3 -m pip install --upgrade pip
 
-ADD https://github.com/joaovizoso/arms_docker/archive/refs/heads/main.zip /arms_docker-main.zip
+ADD https://github.com/diogoalmiro/arms_docker/archive/refs/heads/main.zip /arms_docker-main.zip
 RUN unzip arms_docker-main.zip && rm arms_docker-main.zip
 WORKDIR /arms_docker-main/workflow/exec
 
-RUN pip3 install -r ../../requirements.txt
+RUN pip3 install -r ../requirements.txt
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8

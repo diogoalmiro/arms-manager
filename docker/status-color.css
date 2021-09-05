@@ -1,0 +1,21 @@
+.status{
+    background: var(--bs-secondary);
+}
+
+.status.running {
+    background: var(--bs-info);
+}
+
+.status.created, .status.paused {
+    background: var(--bs-warning);
+}
+
+.status.ready{
+    background: var(--bs-secondary);
+}
+.status.exited{
+    background: var(--bs-success);
+}
+.status.exited{
+    background: var(--bs-danger);
+}

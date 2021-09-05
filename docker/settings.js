@@ -10,10 +10,9 @@ const Status = {
 }
 
 module.exports = class Settings{
-    constructor(task, input, output, comp=true, prep=false, lang=['eng'], priority=1){
+    constructor(task, folder, comp=true, prep=false, lang=['eng'], priority=1){
         this.task = task,
-        this.input = input;
-        this.output = output;
+        this.folder = folder;
         this.comp = comp;
         this.prep = prep;
         this.lang = lang;
@@ -22,8 +21,8 @@ module.exports = class Settings{
         this.uploaded = new Date();
     }
 
-    static create(taskName, input, output, obj=null){
-        let settings = obj || new Settings(taskName, input, output);
+    static create(taskName, folder, obj=null){
+        let settings = obj || new Settings(taskName, folder);
         fs.writeFileSync(path.join(Settings.basedir, taskName), JSON.stringify(settings))
         return settings;
     }
@@ -37,7 +36,7 @@ module.exports = class Settings{
         }
     }
     static update(taskName, settings){
-        Settings.create(taskName, settings.input, settings.output, settings);
+        Settings.create(taskName, settings.folder, settings);
     }
     static delete(taskName){
         fs.rmSync(path.join(Settings.basedir, taskName))
