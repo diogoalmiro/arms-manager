@@ -43,6 +43,13 @@ block head
         }
         
 block main
+    form.row(action=apibaseurl+"set-mail", method="post")
+        .col-auto
+            label(for="email").col-form-label Email: 
+        .col-12.col-sm-6
+            input#email.form-control(type="text", name="email", value=component.email)
+        .col-auto
+            input.form-control(type="submit", value="Submit")
     #task-zone(data-pagination-url=apibaseurl, data-pagination-step=1000)
         .task-row
             span Task

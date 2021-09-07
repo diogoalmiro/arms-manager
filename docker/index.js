@@ -18,10 +18,19 @@ const transporter = nodemailer.createTransport({
 })
 
 
+
 const IDLE_TIME = 1000;
 const TASK_FOLDER = path.join(process.env.APPDATA, "webfocus-component-docker/tasks");
 fs.mkdir(TASK_FOLDER, { recursive: true });
 Settings.basedir = TASK_FOLDER;
+
+const MAIL_FILE = path.join(process.env.APPDATA, "webfocus-component-docker/email.txt");
+fs.readFile(MAIL_FILE).then( v => {
+    component.email = v
+}).catch(e => {
+    component.email = 'aleksandr.gelfand@un.org';
+    fs.writeFile(MAIL_FILE, component.email)
+})
 
 async function taskInfo(taskName){
     return {
@@ -116,11 +125,11 @@ action("save",async (task, req, res, next) => {
 action("stop", async (task, req, res, next) => {
     let {settings, docker} = await taskInfo(task);
     if( !docker ) return next(new Error("Cannot stop task. Container not found."));
+    settings.userPaused = true;
+    Settings.update(settings.task, settings);
     if( docker.State.Status == "running" ){
         await exec(`docker pause ${task}`);
     }
-    settings.userPaused = true;
-    Settings.update(settings.task, settings);
 })
 
 action("run", async (task, req, res, next) => {
@@ -132,7 +141,7 @@ action("run", async (task, req, res, next) => {
         flags.push(settings.comp ? '--comp' : '--no-comp');
         flags.push( settings.prep ? '--prep' : '--no-prep');
         for( let lang of settings.lang ) flags.push(`--lang ${lang}`);
-        await exec(`docker create -v "${settings.folder}:/input" --name ${settings.task} ${IMAGE_NAME} python3 workflow.py /input/ ${flags.join(' ')}`)
+        await exec(`docker create -v "${settings.folder}:/input/" --name ${settings.task} ${IMAGE_NAME} python3 workflow.py /input/ ${flags.join(' ')}`)
         runNextTask() // Try to start a new container now
     }
     else{
@@ -203,6 +212,12 @@ component.app.post("/task", (req, res, next) => {
     }).catch(next)
 })
 
+component.app.post("/set-mail", (req,res,next) => {
+    component.email = req.body.email;
+    fs.writeFile(MAIL_FILE, component.email);
+    res.redirect(req.headers.referer)
+})
+
 // Ensure our image exists in host computer
 const IMAGE_NAME = require('./create-local-dockerfile');
 
@@ -210,16 +225,21 @@ async function runNextTask(){
     let tasks = await allTasksInfo();
     let nextTask = null;
     for( let task of tasks ){
-        if( !task.docker ) continue;
+        if( !task.docker || task.settings.userPaused ) continue;
         if( task.docker.State.Status == 'running' ){
             return null;
         }
-        if( task.docker.State.Status == 'created' || task.docker.State.Status == 'paused' && !task.settings.userPaused ){
+        if( task.docker.State.Status == 'created' || task.docker.State.Status == 'paused' ){
             if( !nextTask ){
                 nextTask = task
             }
-            if( new Date(nextTask.docker.Created) > new Date(task.docker.Created) && nextTask.settings.priority <= task.settings.priority ){
+            if( nextTask.settings.priority < task.settings.priority ){
                 nextTask = task;
+            }
+            if( nextTask.settings.priority == task.settings.priority ){
+                if( new Date(nextTask.docker.Created) > new Date(task.docker.Created) ){
+                    nextTask = task;
+                }
             }
         }
     }
@@ -260,7 +280,7 @@ component.on('dockerEvent', (evt) => {
         }
         transporter.sendMail({
             from: '"Webfocus ARMS" <webfocus-arms@un.org>',
-            to: '"Aleksandr Gelfand" <aleksandr.gelfand@un.org>',
+            to: component.email,
             subject: `OCR Task ${evt.Actor.Attributes.name} - Terminated (Exit code: ${evt.Actor.Attributes.exitCode})`,
             text: text
         }).catch(e => {
