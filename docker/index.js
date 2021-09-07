@@ -6,7 +6,8 @@ const fs = require("fs/promises");
 const Settings = require('./settings');
 const pagination = require("@webfocus/util/util").pagination;
 const {promisify} = require('util');
-const exec =  promisify(require('child_process').exec);
+const _exec =  promisify(require('child_process').exec);
+const exec = (str) => _exec(str, { windowsHide: true, shell: false })
 const open = require('open');
 const drivelist = require("drivelist");
 const nodemailer = require("nodemailer")
@@ -26,7 +27,7 @@ async function taskInfo(taskName){
     return {
         task: taskName,
         settings: Settings.read(taskName),
-        docker: await exec(`docker container inspect --format "{{json .}}" ${taskName}`, { windowsHide: true, shell: false }).then(({stdout}) => JSON.parse(stdout)).catch(e => null)
+        docker: await exec(`docker container inspect --format "{{json .}}" ${taskName}`).then(({stdout}) => JSON.parse(stdout)).catch(e => null)
     }
 }
 
@@ -43,7 +44,7 @@ component.app.get("/", pagination(allTasksInfo));
 component.staticApp.get('/task', async (req, res, next) => {
     component.task = await taskInfo(req.query.id)
     if( !component.task.settings ) return next(new Error("Task not found"))
-    component.task.logs = await exec(`docker logs ${req.query.id}`).then(({stdout}) => stdout).catch(e => "");
+    component.task.logs = await exec(`docker logs ${req.query.id}`).then(({stdout, stderr}) => ({stdout, stderr})).catch(e => ({stderr:"", stdout:""}));
     next()
 })
 
@@ -80,13 +81,6 @@ component.app.post("/create", async (req, res, next) => {
         fs.stat(req.body.path)
 
         let settings = Settings.create(Date.now().toString(), req.body.path);
-        
-        settings.comp = 'comp' in req.body;
-        settings.prep = 'prep' in req.body;
-        settings.lang = req.body['lang'] || ["eng"];
-        settings.priority = parseInt(req.body["priority"] || 1)
-
-        Settings.update(settings.task, settings)
         res.redirect(`/${component.urlname}/`)
     }
     catch(e){
@@ -123,7 +117,7 @@ action("stop", async (task, req, res, next) => {
     let {settings, docker} = await taskInfo(task);
     if( !docker ) return next(new Error("Cannot stop task. Container not found."));
     if( docker.State.Status == "running" ){
-        child_process.execSync(`docker pause ${task}`);
+        await exec(`docker pause ${task}`);
     }
     settings.userPaused = true;
     Settings.update(settings.task, settings);
@@ -135,11 +129,10 @@ action("run", async (task, req, res, next) => {
         await ACTIONS["save"](task, req, res, next)
         let settings = Settings.read(task);
         let flags = [];
-        if( settings.comp ) flags.push('--comp');
-        if( settings.prep ) flags.push('--prep');
+        flags.push(settings.comp ? '--comp' : '--no-comp');
+        flags.push( settings.prep ? '--prep' : '--no-prep');
         for( let lang of settings.lang ) flags.push(`--lang ${lang}`);
-        await fs.mkdir(path.join(settings.folder,'out'), { recursive: true })
-        child_process.execSync(`docker create -v "${settings.folder}":/input -v "${settings.folder}/out/":/arms_docker-main/workflow/results/input --name ${settings.task} ${IMAGE_NAME} python3 workflow.py --folder /input ${flags.join(' ')}`)
+        await exec(`docker create -v "${settings.folder}:/input" --name ${settings.task} ${IMAGE_NAME} python3 workflow.py /input/ ${flags.join(' ')}`)
         runNextTask() // Try to start a new container now
     }
     else{
@@ -166,10 +159,10 @@ action("run", async (task, req, res, next) => {
 action("delete", async (task, req, res, next) => {
     let {settings, docker} = await taskInfo(task);
     if( docker && (docker.State.Status == 'running' || docker.State.Status == 'paused') ){
-        child_process.execSync(`docker stop ${task}`);
+        await exec(`docker stop ${task}`);
     }
     if(docker){
-        child_process.execSync(`docker container rm ${task}`);
+        await exec(`docker container rm ${task}`);
         settings.userPaused = false;
         Settings.update(settings.task, settings);
     }
@@ -182,7 +175,7 @@ action("delete", async (task, req, res, next) => {
 action("rename", async (task, req, res, next) => {
     let {settings, docker} = await taskInfo(task);
     if( docker ){
-        child_process.execSync(`docker container rename ${task} ${req.body.newname}`)
+        await exec(`docker container rename ${task} ${req.body.newname}`)
     }
     if( settings ){
         let settings = Settings.read(task);
@@ -235,7 +228,7 @@ async function runNextTask(){
     }
 }
 
-const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}" --filter "type=container" --filter "event=pause" --filter="event=die"`)
+const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}" --filter "type=container" --filter "event=pause" --filter="event=die"`, { windowsHide: true, shell: false })
 let lastLine = '';
 watcher.stderr.on('data', (part) => {
     console.error('docker events error')
@@ -255,6 +248,24 @@ watcher.stdout.on('data', (part) => {
 component.on('dockerEvent', (evt) => {
     if( evt.status == 'die' || evt.status == 'pause' ){  // Start the next container when another ends or user Pauses it
         runNextTask();
+    }
+    
+    if( evt.status == 'die' ){
+        let text = ""
+        if( evt.Actor.Attributes.exitCode == 0 ){
+            text = `Hello,\nThe task "${evt.Actor.Attributes.name}" just terminated with success.\nAll files should be available in the ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]} folder.\nWebfocus ARMS`
+        }
+        else{
+            text = `Hello,\nThe task "${evt.Actor.Attributes.name}" just terminated with the error code ${evt.Actor.Attributes.exitCode}. This means that something went wrong with some file(s). The logs are available at the web application.\nThe files are available at ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]} folder.\nWebfocus ARMS`
+        }
+        transporter.sendMail({
+            from: '"Webfocus ARMS" <webfocus-arms@un.org>',
+            to: '"Aleksandr Gelfand" <aleksandr.gelfand@un.org>',
+            subject: `OCR Task ${evt.Actor.Attributes.name} - Terminated (Exit code: ${evt.Actor.Attributes.exitCode})`,
+            text: text
+        }).catch(e => {
+            component.debug("Error sending email %O", e)
+        })
     }
 })
 

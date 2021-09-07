@@ -6,11 +6,7 @@ const debug = require("debug")("webfocus:main")
 const menu = [
     { text: "Webfocus ARMS App", disabled: true },
     { text: "Open Webapp", disabled: true },
-    { text: "Exit", callback: () => {
-            debug("User closed application in System Tray.");
-            process.exit(0);
-        }
-    }
+    { text: "Exit", disabled: true }
 ]
 
 let tray = new Tray(path.join(process.env.APPDATA, 'arms-app/favicon.ico'), menu)
@@ -43,6 +39,7 @@ menu[1].callback = () => {
     open(`http://localhost:${server.address().port}/`)
     tray.update();
 };
+menu[2].disabled = false;
 menu[2].callback = () => {
     debug("User closed application in System Tray.");
     server.close();

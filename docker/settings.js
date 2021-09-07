@@ -10,7 +10,7 @@ const Status = {
 }
 
 module.exports = class Settings{
-    constructor(task, folder, comp=true, prep=false, lang=['eng'], priority=1){
+    constructor(task, folder, comp=true, prep=true, lang=['eng'], priority=1){
         this.task = task,
         this.folder = folder;
         this.comp = comp;

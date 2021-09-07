@@ -45,6 +45,9 @@ block main
                 li
                     span: b= moment.name
                     span= (!moment.date || (+moment.date) == +new Date("0001-01-01T00:00:00Z")) ? '' : format.format(moment.date)
+            li
+                span: b Exit Code
+                span= component.task.docker ? component.task.docker.State.ExitCode : ''
         h5 Configuration
         .input-group
             label.input-group-text Folder
@@ -52,11 +55,11 @@ block main
         .form-check
             label.form-check-label
                 input.form-check-input(type="checkbox", name="comp", checked=component.task.settings.comp, disabled=!!component.task.docker)
-                | Disable Line segmentation comparison
+                | Line Segmentation Comparison
         .form-check
             label.form-check-label
                 input.form-check-input(type="checkbox", name="prep", checked=component.task.settings.prep, disabled=!!component.task.docker)
-                | Additional pre-processing
+                | Additional Preprocessing
         span.form-text Dictionaries:
         .langs.form-group
             label.form-check-label
@@ -95,7 +98,9 @@ block main
             if !component.task.docker || component.task.settings.userPaused
                 button.btn.btn-primary(type="submit", value="run", name="action") Run
         h5 Logs
-        pre= component.task.logs
+        div.row
+            pre.col-12.col-sm-6= component.task.logs.stdout
+            pre.col-12.col-sm-6= component.task.logs.stderr
         details
             summary JSON Debug
             pre= JSON.stringify(component.task.docker, null, "    ")

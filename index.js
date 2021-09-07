@@ -18,7 +18,8 @@ const stderr = fs.openSync(path.join(LOG_FOLDER, logname+ "_stderr.log"), 'w')
 const child = child_process.fork(path.join(__dirname,'main.js'), {
     stdio: ['ignore', stdout, stderr, 'ipc'],
     detached: true,
-
+    windowsHide: true,
+    shell: false,
     env: { DEBUG: 'webfocus:*', ...process.env }
 });
 

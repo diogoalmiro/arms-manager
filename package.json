@@ -15,13 +15,9 @@
       "./node_modules/@webfocus/app/static/**/*",
       "./node_modules/@webfocus/util/**/*",
       "node_modules/ctray/build/**/*",
-      "node_modules/sharp/**/*",
-      "node_modules/sharp/lib/icc/**/*",
-      "node_modules/sharp/vendor/**/*"
+      "node_modules/drivelist/build/**/*"
     ],
     "scripts": [
-      "node_modules/sharp/lib/**/*.js",
-      "node_modules/sharp/binding.js",
       "node_modules/ctray/tray.js"
     ]
   },
@@ -36,7 +32,6 @@
     "debug": "^2.6.9",
     "drivelist": "^9.2.4",
     "nodemailer": "^6.6.3",
-    "open": "^8.2.1",
-    "sharp": "^0.29.0"
+    "open": "^8.2.1"
   }
 }
