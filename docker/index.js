@@ -26,7 +26,7 @@ Settings.basedir = TASK_FOLDER;
 
 const MAIL_FILE = path.join(process.env.APPDATA, "webfocus-component-docker/email.txt");
 fs.readFile(MAIL_FILE).then( v => {
-    component.email = v
+    component.email = v.toString()
 }).catch(e => {
     component.email = 'aleksandr.gelfand@un.org';
     fs.writeFile(MAIL_FILE, component.email)
