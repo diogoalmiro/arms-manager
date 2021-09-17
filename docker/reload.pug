@@ -1,0 +1,9 @@
+script.
+    let evtSource = new EventSource('!{apibaseurl}events');
+    evtSource.addEventListener("pause", () => window.location.reload(true))
+    evtSource.addEventListener("die", () => window.location.reload(true))
+    evtSource.addEventListener("unpause", () => window.location.reload(true))
+    evtSource.addEventListener("start", () => window.location.reload(true))
+    evtSource.addEventListener("create", () => window.location.reload(true))
+    evtSource.addEventListener("stop", () => window.location.reload(true))
+    evtSource.addEventListener("rename", () => window.location.reload(true))
