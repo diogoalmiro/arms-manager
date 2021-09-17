@@ -10,12 +10,13 @@ const Status = {
 }
 
 module.exports = class Settings{
-    constructor(task, folder, comp=true, prep=true, lang=['eng'], priority=1){
+    constructor(task, folder, comp=true, prep=true, lang=['eng'], priority=1, mail=""){
         this.task = task,
         this.folder = folder;
         this.comp = comp;
         this.prep = prep;
         this.lang = lang;
+        this.mail = mail;
         this.userPaused = false;
         this.priority = priority;
         this.uploaded = new Date();

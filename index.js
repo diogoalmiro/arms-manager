@@ -2,7 +2,7 @@ const child_process = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const APP_FOLDER = path.join(process.env.APPDATA, "arms-app")
+const APP_FOLDER = require("app-data-folder")("arms-app")
 const LOG_FOLDER = path.join(APP_FOLDER, "logs");
 
 fs.mkdirSync(LOG_FOLDER, { recursive: true });

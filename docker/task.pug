@@ -1,9 +1,8 @@
 extends /layouts/main
 
 block head
-    meta(http-equiv="refresh", content="30")
     link(rel="stylesheet", href=componentbaseurl+"status-color.css")
-    link(rel="stylesheet", href=componentbaseurl+"timer.css")
+    include ./reload
     style. 
         ul#moment {
             display: flex;
@@ -50,8 +49,14 @@ block main
                 span= component.task.docker ? component.task.docker.State.ExitCode : ''
         h5 Configuration
         .input-group
+            label.input-group-text Mail
+            input.form-control(value=component.task.settings.mail, name="mail", placeholder="me@example.com")
+        .input-group
             label.input-group-text Folder
             input.form-control(value=component.task.settings.folder, readonly, name="folder")
+        .input-group
+            label.input-group-text Task name
+            input.form-control(name="newname", value="", placeholder=`Rename "${component.task.task}"`)
         .form-check
             label.form-check-label
                 input.form-check-input(type="checkbox", name="comp", checked=component.task.settings.comp, disabled=!!component.task.docker)
@@ -60,23 +65,14 @@ block main
             label.form-check-label
                 input.form-check-input(type="checkbox", name="prep", checked=component.task.settings.prep, disabled=!!component.task.docker)
                 | Additional Preprocessing
+        
         span.form-text Dictionaries:
-        .langs.form-group
-            label.form-check-label
-                input.form-check-input(name="lang", type="checkbox", value="osd", checked=component.task.settings.lang.indexOf('osd') >= 0, disabled=!!component.task.docker)
-                | osd
-            label.form-check-label
-                input.form-check-input(name="lang", type="checkbox", value="por", checked=component.task.settings.lang.indexOf('por') >= 0, disabled=!!component.task.docker)
-                | por
-            label.form-check-label
-                input.form-check-input(name="lang", type="checkbox", value="ara", checked=component.task.settings.lang.indexOf('ara') >= 0, disabled=!!component.task.docker)
-                | ara
-            label.form-check-label
-                input.form-check-input(name="lang", type="checkbox", value="eng", checked=component.task.settings.lang.indexOf('eng') >= 0, disabled=!!component.task.docker)
-                | eng
-            label.form-check-label
-                input.form-check-input(name="lang", type="checkbox", value="rus", checked=component.task.settings.lang.indexOf('rus') >= 0, disabled=!!component.task.docker)
-                | rus
+        .langs.form-group.row
+            - dicts = ["afr","amh","ara","asm","aze","aze_cyrl","bel","ben","bod","bos","bre","bul","cat","ceb","ces","chi_sim","chi_sim_vert","chi_tra","chi_tra_vert","chr","cos","cym","dan","deu","div","dzo","ell","eng","enm","epo","equ","est","eus","fao","fas","fil","fin","fra","frk","frm","fry","gla","gle","glg","grc","guj","hat","heb","hin","hrv","hun","hye","iku","ind","isl","ita","ita_old","jav","jpn","jpn_vert","kan","kat","kat_old","kaz","khm","kir","kmr","kor","kor_vert","lao","lat","lav","lit","ltz","mal","mar","mkd","mlt","mon","mri","msa","mya","nep","nld","nor","oci","ori","osd","pan","pol","por","pus","que","ron","rus","san","sin","slk","slv","snd","spa","spa_old","sqi","srp","srp_latn","sun","swa","swe","syr","tam","tat","tel","tgk","tha","tir","ton","tur","uig","ukr","urd","uzb","uzb_cyrl","vie","yid","yor"]
+            for d of dicts
+                label.col-2.form-check-label
+                    input.mx-2.form-check-input(type="checkbox", name="lang", checked=component.task.settings.lang.indexOf(d) >= 0, value=d, disabled=!!component.task.docker)
+                    | !{d}
         .input-group
             label.input-group-text Priority
             select.form-select(name="priority", disabled=!!component.task.docker)
@@ -85,13 +81,8 @@ block main
                 option(value="3", selected=component.task.settings.priority==3) High
         .actions
             // All buttons are submitable, however, only when renaming we hit enter. Enter will submit with the first button.
-            button.d-none(type="submit", value="rename", name="action")
-            if !component.task.docker
-                button.btn.btn-primary(type="submit", value="save", name="action") Save Settings
+            button.btn.btn-primary(type="submit", value="save", name="action") Save Settings
             button.btn.btn-danger(type="submit", value="delete", name="action")= component.task.docker ? 'Delete Container' : 'Delete Task'
-            div.input-group
-                input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{component.task.task}\"")
-                button.btn.btn-info.form-control(type="submit", value="rename", name="action") Rename
             if component.task.docker
                 if !component.task.settings.userPaused && component.task.docker.State.Status != 'exited'
                     button.btn.btn-warning(type="submit", value="stop", name="action")  Pause

@@ -1,10 +1,9 @@
 extends /layouts/main
 
 block head
-    meta(http-equiv="refresh", content="30")
     script(src="/util/pagination.js")
     link(rel="stylesheet", href=componentbaseurl+"status-color.css")
-    link(rel="stylesheet", href=componentbaseurl+"timer.css")
+    include ./reload
     style.
         #task-zone{
             display: table;
@@ -28,33 +27,13 @@ block head
             vertical-align: middle;
         }
 
-        .langs{
-            display: flex;
-            flex-wrap: wrap;
-        }
-
-        .langs > span{ 
-            flex: 0 0 100%;
-            margin: 0;
-        }
-        
-        .langs > .form-check-label{ 
-            margin: 0.1em 0.2em;
-        }
-        
 block main
-    form.row(action=apibaseurl+"set-mail", method="post")
-        .col-auto
-            label(for="email").col-form-label Email: 
-        .col-12.col-sm-6
-            input#email.form-control(type="text", name="email", value=component.email)
-        .col-auto
-            input.form-control(type="submit", value="Submit")
     #task-zone(data-pagination-url=apibaseurl, data-pagination-step=1000)
         .task-row
             span Task
             span Status
             span Folder
+            span Notify Email
             span OCR Settings
             span Actions
         form#upload.task-row(action=apibaseurl+"create", method="post")
@@ -70,6 +49,8 @@ block main
                         span(data-pagination-map="#{value.task}") 
                 div: span.status.badge.rounded-pill(data-pagination-function="let status = value.docker ? value.docker.State.Status : 'editable'; this.classList.add(status); return value.settings.userPaused ? 'User paused' : status")
                 div: a(data-pagination-map="#{value.settings.folder}",data-pagination-href=`${apibaseurl}open-folder?path=#{value.settings.folder}`)
+                div
+                    input.form-control(name="mail", data-pagination-map="#{value.settings.mail}", data-pagination-key="value", placeholder="me@example.com")
                 div: .settings
                     .form-check
                         label.form-check-label
@@ -79,23 +60,9 @@ block main
                         label.form-check-label
                             input.form-check-input(type="checkbox", name="prep", data-pagination-function="this.checked = value.settings.prep; this.disabled = !!value.docker")
                             | Additional Preprocessing
-                    .langs.form-group
-                        span.form-text Dictionaries:
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="osd", data-pagination-function="this.checked = value.settings.lang.indexOf('osd') >= 0; this.disabled = !!value.docker")
-                            | osd
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="por", data-pagination-function="this.checked = value.settings.lang.indexOf('por') >= 0; this.disabled = !!value.docker")
-                            | por
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="ara", data-pagination-function="this.checked = value.settings.lang.indexOf('ara') >= 0; this.disabled = !!value.docker")
-                            | ara
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="eng", data-pagination-function="this.checked = value.settings.lang.indexOf('eng') >= 0; this.disabled = !!value.docker")
-                            | eng
-                        label.form-check-label
-                            input.form-check-input(name="lang", type="checkbox", value="rus", data-pagination-function="this.checked = value.settings.lang.indexOf('rus') >= 0; this.disabled = !!value.docker")
-                            | rus
+                    .form-group
+                        span.form-text
+                            a(data-pagination-href=`${componentbaseurl}task?id=#{value.task}`)  Dictionaries >
                     .input-group
                         label.input-group-text Priority
                         select.form-select(name="priority", data-pagination-key="disabled", data-pagination-map="", data-pagination-if="return !!value.docker")
@@ -105,11 +72,8 @@ block main
                 div
                     .actions
                         // All buttons are submitable, however, only when renaming we hit enter. Enter will submit with the first button.
-                        button.d-none(type="submit", value="rename", name="action")
-                        button.btn.btn-primary(type="submit", value="save", name="action", data-pagination-function="return value.docker ? this.parentNode.removeChild(this) : 'Save Settings'") Save Settings
+                        input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{value.task}\"")
+                        button.btn.btn-primary(type="submit", value="save", name="action") Save
                         button.btn.btn-danger(type="submit", value="delete", name="action", data-pagination-function="return value.docker ? 'Delete Container' : 'Delete Task'")
-                        div.input-group
-                            input.form-control(name="newname", value="", data-pagination-key="placeholder", data-pagination-map="Rename \"#{value.task}\"")
-                            button.btn.btn-info.form-control(type="submit", value="rename", name="action") Rename
                         button.btn.btn-warning(type="submit", value="stop", name="action", data-pagination-function="return value.docker ? (value.settings.userPaused || value.docker.State.Status == 'exited' ? this.parentNode.removeChild(this) : 'Pause')  : this.parentNode.removeChild(this)") Stop
                         button.btn.btn-primary(type="submit", value="run", name="action", data-pagination-function="return value.docker ? (value.settings.userPaused ? 'Unpause' : this.parentNode.removeChild(this)) : 'Run'") Run
