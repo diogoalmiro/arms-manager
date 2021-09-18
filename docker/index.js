@@ -142,7 +142,7 @@ action("stop", async (task, req, res, next) => {
     settings.userPaused = true;
     Settings.update(settings.task, settings);
     if( dockerObj && dockerObj.State.Status == "running" ){
-        await docker.stop(settings)
+        await docker.pause(settings)
     }
 })
 
