@@ -31,7 +31,7 @@
     "@webfocus/send-mail": "^0.0.5",
     "@webfocus/util": "^0.2.15",
     "app-data-folder": "^1.0.0",
-    "ctray": "^0.0.9",
+    "ctray": "^0.0.10",
     "debug": "^2.6.9",
     "drivelist": "^9.2.4",
     "nodemailer": "^6.6.3",
