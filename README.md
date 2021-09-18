@@ -22,7 +22,7 @@ It also creates a new system tray icon on the Windows Taskbar with the following
 
 ### Web interface
 
-On the browser you will find the components: "Task Manager" and "Email Configuration".
+On the browser you will find the components: "Task Manager" and "Mail Configuration".
 
 ![Web Interface Home](imgs/web-home.jpg)
 
@@ -56,7 +56,7 @@ You are then redirected to the task specific location in this page you can:
    - **Started**: Time when the task actually started.
    - **Finished**: Time when the task terminated.
    - **Exit Code**: What was the task final state. (0 - No errors)
- - Specify the email address to notify when the OCR terminates.
+ - Specify the mail address to notify when the OCR terminates.
  - Rename the task.
  - Set flags for the OCR and the dictionaries. (**Only when the task state is "Editable"**)
  - Set the priority of the task.(**Only when the task state is "Editable"**)
@@ -71,7 +71,7 @@ The task also appears on the Task Manager page with a smaller subset of options.
 
 On the list of the Task Manager page the right most link opens the task specific page. The folder link opens the File Explorer on that folder. 
 
-#### Email Configuration
+#### Mail Configuration
 
 The other available component allows you to set the configuration of the mail server (in case of any updates) and allows you to test the configuration.
 
