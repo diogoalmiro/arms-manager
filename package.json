@@ -1,6 +1,6 @@
 {
   "name": "arms-manager",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "main": "index.js",
   "bin": "index.js",
@@ -14,6 +14,7 @@
       "./node_modules/@webfocus/app/views/**/*",
       "./node_modules/@webfocus/app/static/**/*",
       "./node_modules/@webfocus/util/**/*",
+      "./node_modules/@webfocus/send-mail/**/*",
       "node_modules/ctray/build/**/*",
       "node_modules/drivelist/build/**/*"
     ],

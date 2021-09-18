@@ -139,10 +139,9 @@ action("save",async (task, req, res, next) => {
 
 action("stop", async (task, req, res, next) => {
     let {settings, docker: dockerObj} = await taskInfo(task);
-    if( !dockerObj ) return next(new Error("Cannot stop task. Container not found."));
     settings.userPaused = true;
     Settings.update(settings.task, settings);
-    if( dockerObj.State.Status == "running" ){
+    if( dockerObj && dockerObj.State.Status == "running" ){
         await docker.stop(settings)
     }
 })
