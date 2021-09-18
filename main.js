@@ -17,9 +17,22 @@ let webfocusApp = new WebfocusApp( configuration );
 // e.g. webfocusApp.registerComponent(require('../component-example'));
 webfocusApp.registerComponent(require('./docker'));
 webfocusApp.registerComponent(require('@webfocus/util/component'));
-webfocusApp.registerComponent(require('@webfocus/send-mail'));
+let mailComponent = require('@webfocus/send-mail');
+webfocusApp.registerComponent(mailComponent);
 
 let server = webfocusApp.start();
+mailComponent.readMailConfig().then(async config => {
+    if( !config.host ){
+        await mailComponent.setMailConfig({
+            host: "mx7.un.org",
+            port: 25,
+            auth: {
+                user: "",
+                pass: ""
+            }
+        })
+    }
+})
 
 try{
     const Tray = require("ctray");
