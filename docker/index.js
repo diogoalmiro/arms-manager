@@ -39,7 +39,7 @@ component.once('webfocusApp', (webfocusApp) => {
 
         let text = '';
         if( evt.Actor.Attributes.exitCode == 0 ){
-            text = `Hello,\nThe task "${settings.task}" just terminated with success.\nAll files are available at the folder ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]}.\nWebfocus ARMS`
+            text = `Hello,\nThe task "${settings.task}" just terminated with success.\nAll files are available at the folder ${settings.folder}.\nWebfocus ARMS`
         }
         else{
             text = `Hello,\nThe task "${settings.task}" just terminated with the error code ${evt.Actor.Attributes.exitCode}. This means that something went wrong with some file(s). The logs are available at the web application.\nThe files are available at the folder ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]}.\nWebfocus ARMS`
