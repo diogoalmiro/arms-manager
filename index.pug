@@ -1,0 +1,12 @@
+extends /layouts/main
+
+block main 
+    form.pb-2.container(action=apibaseurl+'update-docker',method="POST")
+        button.btn.btn-primary(type="submit") Update docker image 
+
+    form.pb-2.container(action=apibaseurl+'open-logs',method="POST")
+        button.btn.btn-primary(type="submit") Open Logs Folder 
+    
+    form.pb-2.container(action=apibaseurl+'close',method="POST")
+        button.btn.btn-danger(type="submit") Close Application 
+    

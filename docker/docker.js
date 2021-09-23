@@ -2,7 +2,7 @@ const child_process = require("child_process");
 const debug = require("debug")("webfocus:component:docker");
 const {promisify} = require('util');
 const pexec =  promisify(child_process.exec);
-const hideShell = { windowsHide: true, shell: false }
+const hideShell = { windowsHide: true }
 const exec = (cmd) => pexec(cmd, hideShell).catch(e => {
     debug(e.message);
     return null;
@@ -36,15 +36,20 @@ module.exports.watch = () => {
     process.once("SIGINT", () => watcher.kill());
     let lastLine = '';
     watcher.stderr.on('data', (part) => {
-        emitter.emit("stderr", part);
+        emitter.emit("error", new Error(part.toString()));
     });
     watcher.stdout.on('data', (part) => {
         lastLine += part.toString();
         jsons = lastLine.split('\n');
         lastLine = jsons.pop();
         for(let jsonString of jsons){
-            let jsonObj = JSON.parse(jsonString);
-            emitter.emit(jsonObj.status, jsonObj);
+            try{
+                let jsonObj = JSON.parse(jsonString);
+                emitter.emit(jsonObj.status, jsonObj);
+            }
+            catch(e){
+                debug("Parsing \"%s\". Error %O", jsonString, e)
+            }
         }
     });
     return _emitter = emitter;

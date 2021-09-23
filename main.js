@@ -2,7 +2,6 @@ const path = require('path');
 const open = require("open");
 const debug = require("debug")("webfocus:main");
 const WebfocusApp = require('@webfocus/app');
-const { WebfocusComponent } = require('@webfocus/component');
 
 let configuration = {
     port : 8006, // Specify your port here
@@ -35,60 +34,24 @@ mailComponent.readMailConfig().then(async config => {
     }
 })
 
-let settings = new WebfocusComponent("Settings", "Manage application specific settings", __dirname);
-settings.app.post("/close", (req, res) => {
-    settings.debug("Closing application after request by user.");
-    res.end("Closing application after request by user.");
-    process.exit(0);
-});
-settings.app.post("/open-logs", (req,res) => {
-    open(path.join(require("app-data-folder")("arms-app"), 'logs'));
-    res.redirect(req.headers.referer)
-})
-settings.app.post("/update-docker", (req,res) => {
-    settings.debug("Building/Updating docker after request by user.");
-    require("./docker/docker").build().then(maybeNull => maybeNull ? debug("Build success") : debug("Build error"))
-    res.redirect(req.headers.referer)
-})
+let settings = require("@webfocus/tray");
 webfocusApp.registerComponent(settings);
 
 let server = webfocusApp.start();
-try{
-    
-    const Tray = require("ctray");
-    // Try to start system tray.
-    debug("Starting System Tray")
-    const menu = [
-        { text: "Webfocus ARMS App", disabled: true },
-        { 
-            text: "Open Webapp",
-            callback: () => {
-                debug("User opened Application in System Tray")
-                open(`http://localhost:${server.address().port}/`)
-                tray.update();
-            }
-        },
-        {
-            text: "Exit",
-            callback: () => {
-                debug("User closed application in System Tray.");
-                server.close();
-                tray.stop();
-                process.exit(0);
-            }
-        }
-    ]
-    let tray = new Tray(path.join(require("app-data-folder")("arms-app"), 'favicon.ico'), menu);
-    tray.start();
-    server.once("error", () => {
-        debug("Tray stoped due to a server error.");
-        tray.stop()
-    })
-}
-catch(e){
-    debug("Error System Tray. %O", e)
-}
-
+settings.setIcon(path.join(require("app-data-folder")("arms-app"), 'favicon.ico'));
+settings.setTitle(webfocusApp.configuration.name);
+settings.addAction("Open Application", () => open(`http://localhost:${server.address().port}/`));
+settings.addAction("Update Docker", () => require("./docker/docker").build().then(maybeNull => maybeNull ? debug("Build success") : debug("Build error")) );
+settings.addAction("Open Logs", () => open(path.join(require("app-data-folder")("arms-app"), 'logs')));
+settings.addAction("Close Applicarion", () => {
+    server.close();
+    settings.closeTray();
+    process.exit(0);
+});
+settings.showTray();
+server.once("listening", () => {
+    open(`http://localhost:${server.address().port}`);
+})
 server.once("error", (err) => {
     let errorFilePath = path.join(require("app-data-folder")("arms-app"),`server-error.html`);
     let errorFile = require("fs").createWriteStream(errorFilePath);
@@ -100,11 +63,12 @@ server.once("error", (err) => {
 <p><a href="./logs/">Logs are available here.</a></p>
 <p>Error details:</p>
 <pre>${JSON.stringify(err, null, "  ")}</pre>`, (subError) => {
-        if( !subError ){
-            errorFile.end( () => {
-                debug("Open Error File %s", errorFilePath);
-                open(errorFilePath, {wait: true}).catch(e => debug(e)).finally(() => {
-                    process.exit(1)
+    settings.closeTray();
+    if( !subError ){
+        errorFile.end( () => {
+            debug("Open Error File %s", errorFilePath);
+            open(errorFilePath, {wait: true}).catch(e => debug(e)).finally(() => {
+                process.exit(1)
                 })
             })
         }
