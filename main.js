@@ -60,7 +60,10 @@ try{
     ]
     let tray = new Tray(path.join(require("app-data-folder")("arms-app"), 'favicon.ico'), menu);
     tray.start();
-    server.once("error", () => tray.stop())
+    server.once("error", () => {
+        debug("Tray stoped due to a server error.");
+        tray.stop()
+    })
 }
 catch(e){
     debug("Error System Tray. %O", e)
@@ -79,9 +82,9 @@ server.once("error", (err) => {
 <pre>${JSON.stringify(err, null, "  ")}</pre>`, (subError) => {
         if( !subError ){
             errorFile.end( () => {
-                debug("Open Error File");
-                open(errorFilePath).finally(() => {
-                    process.exit(1);
+                debug("Open Error File %s", errorFilePath);
+                open(errorFilePath, {wait: true}).catch(e => debug(e)).finally(() => {
+                    process.exit(1)
                 })
             })
         }
