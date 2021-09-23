@@ -1,6 +1,6 @@
-const path = require('path')
+const path = require('path');
 const open = require("open");
-const debug = require("debug")("webfocus:main")
+const debug = require("debug")("webfocus:main");
 const WebfocusApp = require('@webfocus/app');
 
 let configuration = {
@@ -60,7 +60,30 @@ try{
     ]
     let tray = new Tray(path.join(require("app-data-folder")("arms-app"), 'favicon.ico'), menu);
     tray.start();
+    server.once("error", () => tray.stop())
 }
 catch(e){
     debug("Error System Tray. %O", e)
 }
+
+server.once("error", (err) => {
+    let errorFilePath = path.join(require("app-data-folder")("arms-app"),`server-error.html`);
+    let errorFile = require("fs").createWriteStream(errorFilePath);
+    errorFile.write(`
+<h1 style="color:darkred">ARMS Manager Application Error</h1>
+<p>ARMS Manager main application emitted an error.</p>
+<p>This might be because another application is already using the application port 8006.</p>
+<p>Please check if there is another programm running a server and stop it. Afterwards try again.</p>
+<p>Error details:</p>
+<pre>${JSON.stringify(err, null, "  ")}</pre>`, (subError) => {
+        if( !subError ){
+            errorFile.end( () => {
+                debug("Open Error File");
+                open(errorFilePath);
+            })
+        }
+        else{
+            debug("Writing Error File: %s", subError.message);
+        }
+    }); 
+})

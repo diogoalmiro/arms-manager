@@ -4,15 +4,13 @@ const {promisify} = require('util');
 const pexec =  promisify(child_process.exec);
 const hideShell = { windowsHide: true, shell: false }
 const exec = (cmd) => pexec(cmd, hideShell).catch(e => {
-    debug("docker cmd \"%s\" failed: %s", cmd, e.message)
+    debug(e.message);
     return null;
 });
 const EventEmitter = require("events").EventEmitter;
 
 const URL = "https://github.com/diogoalmiro/arms_docker.git#main"
 const IMAGE_NAME = "arms-automatic-docker-image";
-
-
 
 /**
  * Builds/Updates the docker image
@@ -23,11 +21,13 @@ module.exports.build = () => {
     return exec(`docker build -t ${IMAGE_NAME} ${URL}`);
 }
 
+let _emitter;
 /**
  * Creates an eventEmitter for the docker events of a container with our image
  * @returns the eventEmitter
  */
 module.exports.watch = () => {
+    if( _emitter ) return _emitter;
     debug("Watching docker events");
     const emitter = new EventEmitter();
     const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}"`, hideShell);
@@ -44,13 +44,13 @@ module.exports.watch = () => {
             emitter.emit(jsonObj.status, jsonObj);
         }
     });
-    return emitter;
+    return _emitter = emitter;
 }
 
 /**
  * 
  * @param {Settings} settings
- * @returns A promise
+ * @returns A promise with the containr id
  */
 module.exports.create = (settings) => {
     let flags = []
@@ -59,7 +59,7 @@ module.exports.create = (settings) => {
     for(let lang of settings.lang){
         flags.push(`--lang ${lang}`)
     }
-    return exec(`docker create -v "${settings.folder}:/input/" --name ${settings.task} ${IMAGE_NAME} python3 workflow.py /input/ ${flags.join(' ')}`);
+    return exec(`docker create -v "${settings.folder}:/input/" ${IMAGE_NAME} python3 workflow.py /input/ ${flags.join(' ')}`).then(maybeObj => maybeObj ? maybeObj.stdout.trim() : null)
 }
 
 /**
@@ -67,53 +67,45 @@ module.exports.create = (settings) => {
  * @param {Settings} settings 
  * @returns A promise 
  */
-module.exports.pause = (settings) => exec(`docker pause ${settings.task}`);
+module.exports.pause = (settings) => exec(`docker pause ${settings.docker}`);
 
 /**
  * Unpauses a container
  * @param {Settings} settings 
  * @returns A promise 
  */
-module.exports.unpause = (settings) => exec(`docker unpause ${settings.task}`);
+module.exports.unpause = (settings) => exec(`docker unpause ${settings.docker}`);
 
 /**
  * Starts a container
  * @param {Settings} settings 
  * @returns A promise 
  */
-module.exports.start = (settings) => exec(`docker start ${settings.task}`);
+module.exports.start = (settings) => exec(`docker start ${settings.docker}`);
 
 /**
  * Stops a container
  * @param {Settings} settings 
  * @returns 
  */
-module.exports.stop = (settings) => exec(`docker stop ${settings.task}`);
+module.exports.stop = (settings) => exec(`docker stop ${settings.docker}`);
 
 /**
  * Deletes a container
  * @param {Settings} settings 
  * @returns 
  */
-module.exports.delete = (settings) => exec(`docker rm ${settings.task}`);
+module.exports.delete = (settings) => exec(`docker rm ${settings.docker}`);
 
 /**
  * @param {Settings} settings 
  * @returns A promise with the JSON representing the inspected container
  */
-module.exports.inspect = (settings) => exec(`docker container inspect --format "{{json .}}" ${settings.task}`).then(maybeObj => maybeObj ? JSON.parse(maybeObj.stdout) : null);
-
-/**
- * Renames a container
- * @param {string} oldname 
- * @param {string} newname 
- * @returns 
- */
-module.exports.rename = (oldname, newname) => exec(`docker container rename ${oldname} ${newname}`);
+module.exports.inspect = (settings) => exec(`docker container inspect --format "{{json .}}" ${settings.docker}`).then(maybeObj => maybeObj ? JSON.parse(maybeObj.stdout) : null);
 
 /**
  * Returns the stdout and stderr of a container
  * @param {Settings} settings 
  * @returns 
  */
-module.exports.logs = (settings) => exec(`docker logs ${settings.task}`).then(maybeObj => maybeObj ? maybeObj : {stderr:"", stdout:""});
+module.exports.logs = (settings) => exec(`docker logs ${settings.docker}`).then(maybeObj => maybeObj ? maybeObj : {stderr:"", stdout:""});

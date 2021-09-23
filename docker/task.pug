@@ -53,7 +53,7 @@ block main
             input.form-control(value=component.task.settings.mail, name="mail", placeholder="me@example.com")
         .input-group
             label.input-group-text Folder
-            input.form-control(value=component.task.settings.folder, readonly, name="folder")
+            a.form-control(href=`${apibaseurl}open-folder?path=${component.task.settings.folder}`,readonly)=component.task.settings.folder
         .input-group
             label.input-group-text Task name
             input.form-control(name="newname", value="", placeholder=`Rename "${component.task.task}"`)

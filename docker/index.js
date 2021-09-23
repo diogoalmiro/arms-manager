@@ -30,27 +30,35 @@ fs.mkdir(TASK_FOLDER, { recursive: true }).then(async _ => {
 }).catch(e => component.debug("Error: %O"))
 
 component.once('webfocusApp', (webfocusApp) => {
-    dockerEvents.on('die', (evt) => {
-        if( typeof webfocusApp.sendMail !== 'function' ){ return; }
-        
-        let settings = Settings.read(evt.Actor.Attributes.name);
-        if( !settings.mail ){ return; }
-        component.debug("Component died. Notifying by email. %s", settings.mail)
+    dockerEvents.on('die', async (evt) => {
+        try{
+            component.debug("Component died. (Exit code: %s) Notifying by email.", evt.Actor.Attributes.exitCode);
+            if( typeof webfocusApp.sendMail !== 'function' ) throw new Error("No \"sendMail\" function available.")
+            
+            let taskInfo = (await allTasksInfo()).find(t => t.settings.docker == evt.id)
+            if( !taskInfo || !taskInfo.settings ) throw new Error("No task found for event ID \""+evt.id+"\"")
+            component.debug("Found task \"%s\" for docker container %s", taskInfo.task, evt.id)
+            
+            if( !taskInfo.settings.mail ) throw new Error("No mail found for task \""+taskInfo.task+"\"")
 
-        let text = '';
-        if( evt.Actor.Attributes.exitCode == 0 ){
-            text = `Hello,\nThe task "${settings.task}" just terminated with success.\nAll files are available at the folder ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]}.\nWebfocus ARMS`
+            component.debug("sendMail to %s", taskInfo.settings.mail)
+            let text = '';
+            if( evt.Actor.Attributes.exitCode == 0 ){
+                text = `Hello,\nThe task "${taskInfo.task}" just terminated with success.\nAll files are available at the folder ${taskInfo.settings.folder}.\nWebfocus ARMS`
+            }
+            else{
+                text = `Hello,\nThe task "${taskInfo.task}" just terminated with the error code ${evt.Actor.Attributes.exitCode}. This means that something went wrong with some file(s). The logs are available at the web application.\nThe files are available at the folder ${settings.folder}.\nWebfocus ARMS`
+            }            
+            await webfocusApp.sendMail({
+                to: taskInfo.settings.mail,
+                subject: `OCR Task ${taskInfo.task} - Terminated (Exit code: ${evt.Actor.Attributes.exitCode})`,
+                text: text
+            })
+            component.debug("Send mail successfuly")
         }
-        else{
-            text = `Hello,\nThe task "${settings.task}" just terminated with the error code ${evt.Actor.Attributes.exitCode}. This means that something went wrong with some file(s). The logs are available at the web application.\nThe files are available at the folder ${evt.Actor.Attributes["desktop.docker.io/binds/0/Source"]}.\nWebfocus ARMS`
-        }            
-        webfocusApp.sendMail({
-            to: settings.mail,
-            subject: `OCR Task ${settings.task} - Terminated (Exit code: ${evt.Actor.Attributes.exitCode})`,
-            text: text
-        })
-        .then(_ => component.debug("Send mail successful"))
-        .catch(e => component.debug("Send mail error: %O", e))
+        catch(e){
+            component.debug(e)
+        }
     })
 })
 
@@ -59,7 +67,7 @@ component.app.get("/", util.pagination(allTasksInfo));
 component.staticApp.get('/task', async (req, res, next) => {
     component.task = await taskInfo(req.query.id)
     if( !component.task.settings ) return next(new Error("Task not found"))
-    component.task.logs = await docker.logs(component.task.settings)
+    component.task.logs = component.task.settings.docker ? await docker.logs(component.task.settings) : { stderr: "", stdout: ""};
     next()
 })
 
@@ -111,7 +119,7 @@ function action(action, cb){
 }
 
 action("save",async (task, req, res, next) => {
-    component.debug('Updating settings')
+    component.debug('Updating settings of %s', task)
     let {settings, docker: dockerObj} = await taskInfo(task);
     if( !settings ) return next(new Error("Task not found. Please Create a new task."));
     
@@ -125,37 +133,41 @@ action("save",async (task, req, res, next) => {
     }
     settings.mail = req.body['mail'] || ""
     
-    Settings.update(task, settings)
     if( req.body.newname && req.body.newname.length > 0 ){
-        if( !dockerObj || await docker.rename(task, req.body.newname) ){
-            settings.task = req.body.newname;
-            Settings.create(req.body.newname, settings.folder, settings);
-            Settings.delete(task);
-        }
-        
+        settings.task = req.body.newname;
+        Settings.create(req.body.newname, settings.folder, settings);
+        Settings.delete(task);
     }
+    else{
+        Settings.update(task, settings)
+    }
+    component.debug("Redirecting to task %s", settings.task)
     res.redirect(`/${component.urlname}/task?id=${settings.task}`)
+    res.flushHeaders();
+    return settings.task;
 })
 
 action("stop", async (task, req, res, next) => {
+    component.debug('Stopping task %s', task)
     let {settings, docker: dockerObj} = await taskInfo(task);
-    settings.userPaused = true;
-    Settings.update(settings.task, settings);
     if( dockerObj && dockerObj.State.Status == "running" ){
+        settings.userPaused = true;
+        Settings.update(settings.task, settings);
         await docker.pause(settings)
     }
 })
 
 action("run", async (task, req, res, next) => {
-    await ACTIONS["save"](task, req, res, next)
+    task = await ACTIONS["save"](task, req, res, next);
+    component.debug("Running task %s", task);
     let {settings, docker: dockerObj} = await taskInfo(task);
+    if(!settings) return;
+
+    settings.userPaused = false;
     if( !dockerObj ){
-        await docker.create(settings);
+        settings.docker = await docker.create(settings);
     }
-    if( settings ){
-        settings.userPaused = false;
-        Settings.update(settings.task, settings);
-    }
+    Settings.update(settings.task, settings);
     runNextTask() // Try to start a new container now
 })
 
@@ -164,7 +176,7 @@ action("delete", async (task, req, res, next) => {
     if( dockerObj && (dockerObj.State.Status == 'running' || dockerObj.State.Status == 'paused') ){
         await docker.stop(settings);
     }
-    if(dockerObj){
+    if( dockerObj ){
         await docker.delete(settings);
         settings.userPaused = false;
         Settings.update(settings.task, settings);
@@ -230,7 +242,7 @@ async function taskInfo(taskName){
     return {
         task: taskName,
         settings: settings,
-        docker: settings ? await docker.inspect(settings) : null
+        docker: settings && settings.docker ? await docker.inspect(settings) : null
     }
 }
 

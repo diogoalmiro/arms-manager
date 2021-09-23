@@ -1,6 +1,6 @@
 {
   "name": "arms-manager",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "",
   "main": "index.js",
   "bin": "index.js",
@@ -26,7 +26,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@webfocus/app": "^0.2.14",
+    "@webfocus/app": "^0.2.15",
     "@webfocus/component": "^0.0.4",
     "@webfocus/send-mail": "^0.0.6",
     "@webfocus/util": "^0.2.15",

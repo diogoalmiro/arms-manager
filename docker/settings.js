@@ -1,13 +1,5 @@
 const fs = require("fs")
 const path = require("path")
-const Status = {
-    READY: "Ready",
-    QUEUED: "Queued",
-    ERROR: "Error",
-    FINNISHED: "Finnished",
-    RUNNING : "Running",
-    PAUSED: "Paused"
-}
 
 module.exports = class Settings{
     constructor(task, folder, comp=true, prep=true, lang=['eng'], priority=1, mail=""){
@@ -17,6 +9,7 @@ module.exports = class Settings{
         this.prep = prep;
         this.lang = lang;
         this.mail = mail;
+        this.docker = null;
         this.userPaused = false;
         this.priority = priority;
         this.uploaded = new Date();
@@ -42,11 +35,6 @@ module.exports = class Settings{
     static delete(taskName){
         fs.rmSync(path.join(Settings.basedir, taskName))
     }
-
-    static get STATUS(){
-        return Status;
-    }
-
     static get basedir(){
         return Settings._basedir;
     }
