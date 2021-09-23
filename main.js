@@ -2,6 +2,7 @@ const path = require('path');
 const open = require("open");
 const debug = require("debug")("webfocus:main");
 const WebfocusApp = require('@webfocus/app');
+const { WebfocusComponent } = require('@webfocus/component');
 
 let configuration = {
     port : 8006, // Specify your port here
@@ -17,10 +18,10 @@ let webfocusApp = new WebfocusApp( configuration );
 // e.g. webfocusApp.registerComponent(require('../component-example'));
 webfocusApp.registerComponent(require('./docker'));
 webfocusApp.registerComponent(require('@webfocus/util/component'));
-let mailComponent = require('@webfocus/send-mail');
-webfocusApp.registerComponent(mailComponent);
 
-let server = webfocusApp.start();
+let mailComponent = require('@webfocus/send-mail');
+const docker = require('./docker');
+webfocusApp.registerComponent(mailComponent);
 mailComponent.readMailConfig().then(async config => {
     if( !config.host ){
         await mailComponent.setMailConfig({
@@ -34,7 +35,26 @@ mailComponent.readMailConfig().then(async config => {
     }
 })
 
+let settings = new WebfocusComponent("Settings", "Manage application specific settings", __dirname);
+settings.app.post("/close", (req, res) => {
+    settings.debug("Closing application after request by user.");
+    res.end("Closing application after request by user.");
+    process.exit(0);
+});
+settings.app.post("/open-logs", (req,res) => {
+    open(path.join(require("app-data-folder")("arms-app"), 'logs'));
+    res.redirect(req.headers.referer)
+})
+settings.app.post("/update-docker", (req,res) => {
+    settings.debug("Building/Updating docker after request by user.");
+    require("./docker/docker").build().then(maybeNull => maybeNull ? debug("Build success") : debug("Build error"))
+    res.redirect(req.headers.referer)
+})
+webfocusApp.registerComponent(settings);
+
+let server = webfocusApp.start();
 try{
+    
     const Tray = require("ctray");
     // Try to start system tray.
     debug("Starting System Tray")
