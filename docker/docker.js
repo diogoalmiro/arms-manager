@@ -31,6 +31,9 @@ module.exports.watch = () => {
     debug("Watching docker events");
     const emitter = new EventEmitter();
     const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}"`, hideShell);
+    process.once("exit", () => watcher.kill());
+    process.once("SIGTERM", () => watcher.kill());
+    process.once("SIGINT", () => watcher.kill());
     let lastLine = '';
     watcher.stderr.on('data', (part) => {
         emitter.emit("stderr", part);

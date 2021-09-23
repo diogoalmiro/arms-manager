@@ -74,16 +74,20 @@ server.once("error", (err) => {
 <p>ARMS Manager main application emitted an error.</p>
 <p>This might be because another application is already using the application port 8006.</p>
 <p>Please check if there is another programm running a server and stop it. Afterwards try again.</p>
+<p><a href="./logs/">Logs are available here.</a></p>
 <p>Error details:</p>
 <pre>${JSON.stringify(err, null, "  ")}</pre>`, (subError) => {
         if( !subError ){
             errorFile.end( () => {
                 debug("Open Error File");
-                open(errorFilePath);
+                open(errorFilePath).finally(() => {
+                    process.exit(1);
+                })
             })
         }
         else{
             debug("Writing Error File: %s", subError.message);
+            process.exit(1);
         }
     }); 
 })
