@@ -14,6 +14,7 @@ const logname = Date.now().toString();
 
 const debugFile = fs.openSync(path.join(LOG_FOLDER, logname+ ".log"), 'w');
 
+fs.writeSync(debugFile, process.argv0+'\n')
 fs.writeSync(debugFile, "# package.json:\n")
 fs.writeSync(debugFile, "# " + JSON.stringify(require("./package.json"))+ "\n");
 fs.writeSync(debugFile, "# process.env:\n");
@@ -32,7 +33,6 @@ const child = child_process.fork(path.join(__dirname,'main.js'), {
     stdio: ['ignore', debugFile, debugFile, 'ipc'],
     detached: true,
     windowsHide: true,
-    shell: false,
     env: { DEBUG: 'webfocus:*', ...process.env }
 });
 

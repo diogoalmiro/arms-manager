@@ -21,7 +21,14 @@ module.exports.build = () => {
     return exec(`docker build -t ${IMAGE_NAME} ${URL}`);
 }
 
+let _watcher;
 let _emitter;
+
+module.exports.unwatch = () => {
+    if( _watcher ) {
+        _watcher.kill()
+    }
+}
 /**
  * Creates an eventEmitter for the docker events of a container with our image
  * @returns the eventEmitter
@@ -29,30 +36,27 @@ let _emitter;
 module.exports.watch = () => {
     if( _emitter ) return _emitter;
     debug("Watching docker events");
-    const emitter = new EventEmitter();
-    const watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}"`, hideShell);
-    process.once("exit", () => watcher.kill());
-    process.once("SIGTERM", () => watcher.kill());
-    process.once("SIGINT", () => watcher.kill());
+    _emitter = new EventEmitter();
+    _watcher = child_process.exec(`docker events --format "{{json .}}" --filter "image=${IMAGE_NAME}" --filter "type=container"`, hideShell);
     let lastLine = '';
-    watcher.stderr.on('data', (part) => {
-        emitter.emit("error", new Error(part.toString()));
+    _watcher.stderr.on('data', (part) => {
+        _emitter.emit("error", new Error(part.toString()));
     });
-    watcher.stdout.on('data', (part) => {
+    _watcher.stdout.on('data', (part) => {
         lastLine += part.toString();
         jsons = lastLine.split('\n');
         lastLine = jsons.pop();
         for(let jsonString of jsons){
             try{
                 let jsonObj = JSON.parse(jsonString);
-                emitter.emit(jsonObj.status, jsonObj);
+                _emitter.emit(jsonObj.status, jsonObj);
             }
             catch(e){
                 debug("Parsing \"%s\". Error %O", jsonString, e)
             }
         }
     });
-    return _emitter = emitter;
+    return _emitter;
 }
 
 /**

@@ -43,11 +43,7 @@ settings.setTitle(webfocusApp.configuration.name);
 settings.addAction("Open Application", () => open(`http://localhost:${server.address().port}/`));
 settings.addAction("Update Docker", () => require("./docker/docker").build().then(maybeNull => maybeNull ? debug("Build success") : debug("Build error")) );
 settings.addAction("Open Logs", () => open(path.join(require("app-data-folder")("arms-app"), 'logs')));
-settings.addAction("Close Applicarion", () => {
-    server.close();
-    settings.closeTray();
-    process.exit(0);
-});
+settings.addAction("Close Applicarion", cleanExit);
 settings.showTray();
 server.once("listening", () => {
     open(`http://localhost:${server.address().port}`);
@@ -63,18 +59,26 @@ server.once("error", (err) => {
 <p><a href="./logs/">Logs are available here.</a></p>
 <p>Error details:</p>
 <pre>${JSON.stringify(err, null, "  ")}</pre>`, (subError) => {
-    settings.closeTray();
-    if( !subError ){
-        errorFile.end( () => {
-            debug("Open Error File %s", errorFilePath);
-            open(errorFilePath, {wait: true}).catch(e => debug(e)).finally(() => {
-                process.exit(1)
+        if( !subError ){
+            errorFile.end( () => {
+                debug("Open Error File %s", errorFilePath);
+                open(errorFilePath, {wait: true}).catch(e => debug(e)).finally(() => {
+                    cleanExit()
+                    })
                 })
-            })
         }
         else{
             debug("Writing Error File: %s", subError.message);
-            process.exit(1);
+            cleanExit();
         }
     }); 
 })
+
+function cleanExit(){
+    debug("Clean Exit");
+    try{require("./docker/docker").unwatch()}catch(e){debug("  unwatch docker: %O", e)}
+    try{settings.closeTray()}catch(e){debug("  close tray: %O", e)}
+    try{server.close()}catch(e){debug("  close server: %O", e)}
+    debug("Done");
+    process.exit();
+}

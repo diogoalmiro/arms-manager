@@ -62,7 +62,7 @@ component.once('webfocusApp', (webfocusApp) => {
     })
 })
 
-component.app.get("/events", util.serversideevents(dockerEvents, ["pause","die","unpause","start","create","stop","rename"]))
+component.app.get("/events", util.serversideevents(dockerEvents, ["pause","die","destroy","unpause","start","create","stop","rename"]))
 component.app.get("/", util.pagination(allTasksInfo));
 component.staticApp.get('/task', async (req, res, next) => {
     component.task = await taskInfo(req.query.id)
