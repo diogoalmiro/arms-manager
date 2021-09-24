@@ -10,19 +10,21 @@ To start using the application download the [latest executable (.exe)](https://g
 
 The application creates a server. To open the application go to [http://localhost:8006/](http://localhost:8006/).
 
-It also creates a new system tray icon on the Windows Taskbar with the following options: 
+It also creates a new system tray icon on the Windows Taskbar with some options.
 
- - **Open Webapp**: Opens the browser to access the application.
+ - **Open Application**: Opens the browser on [http://localhost:8006/](http://localhost:8006/) to access the application.
+ - **Update Docker**: Rebuilds docker image from the main github branch.
+ - **Open Logs**: Opens the file explorer on the logs location.
+ - **Close Application**: Closes the application server.
 
- - **Exit**: Closes the application.
-
+(some examples of the system tray, with older options)
 ![Windows Taskbar](imgs/windows-taskbar-1.jpg)
 ![Windows Taskbar](imgs/windows-taskbar-2.jpg)
 ![System Tray Options](imgs/tray-options.jpg)
 
 ### Web interface
 
-On the browser you will find the components: "Task Manager" and "Mail Configuration".
+On the browser you will find the components: "Task Manager", "Mail Configuration" and "System Actions".
 
 ![Web Interface Home](imgs/web-home.jpg)
 
@@ -73,6 +75,10 @@ On the list of the Task Manager page the right most link opens the task specific
 
 #### Mail Configuration
 
-The other available component allows you to set the configuration of the mail server (in case of any updates) and allows you to test the configuration.
+This component allows you to set the configuration of the mail server and allows you to test the configuration.
 
 ![Mail Configuration](imgs/mail-configuration.jpg)
+
+### System Actions
+
+This component is the web version of the system tray, in case your computer don't support it.

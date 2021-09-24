@@ -19,7 +19,6 @@ webfocusApp.registerComponent(require('./docker'));
 webfocusApp.registerComponent(require('@webfocus/util/component'));
 
 let mailComponent = require('@webfocus/send-mail');
-const docker = require('./docker');
 webfocusApp.registerComponent(mailComponent);
 mailComponent.readMailConfig().then(async config => {
     if( !config.host ){
@@ -43,7 +42,7 @@ settings.setTitle(webfocusApp.configuration.name);
 settings.addAction("Open Application", () => open(`http://localhost:${server.address().port}/`));
 settings.addAction("Update Docker", () => require("./docker/docker").build().then(maybeNull => maybeNull ? debug("Build success") : debug("Build error")) );
 settings.addAction("Open Logs", () => open(path.join(require("app-data-folder")("arms-app"), 'logs')));
-settings.addAction("Close Applicarion", cleanExit);
+settings.addAction("Close Application", cleanExit);
 settings.showTray();
 server.once("listening", () => {
     open(`http://localhost:${server.address().port}`);
